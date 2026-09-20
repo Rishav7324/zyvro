@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Rishav7324/zyvro/releases/tag/v3.0.0"><img src="https://img.shields.io/badge/Release-v3.0.0-088395?style=for-the-badge&logo=android&logoColor=white" alt="Release v3.0.0"></a>
+  <a href="https://github.com/Rishav7324/zyvro/releases/tag/v3.0.1"><img src="https://img.shields.io/badge/Release-v3.0.1-088395?style=for-the-badge&logo=android&logoColor=white" alt="Release v3.0.1"></a>
   <a href="https://github.com/Rishav7324/zyvro/actions/workflows/build-apk.yml"><img src="https://img.shields.io/badge/CI-Passing-10B981?style=for-the-badge&logo=githubactions&logoColor=white" alt="Build Status"></a>
   <a href="https://github.com/Rishav7324/zyvro/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0-0077B6?style=for-the-badge&logo=gnu&logoColor=white" alt="License"></a>
   <a href="https://github.com/Rishav7324/zyvro/wiki"><img src="https://img.shields.io/badge/Docs-Wiki-7928CA?style=for-the-badge&logo=gitbook&logoColor=white" alt="Wiki Documentation"></a>
@@ -34,8 +34,8 @@ Get the latest official APKs directly from GitHub Releases:
 
 | Variant | Download Link | Description | Size |
 | :--- | :--- | :--- | :--- |
-| **Release APK (Recommended)** | [**Download Zyvro-v3.0.0-release.apk**](https://github.com/Rishav7324/zyvro/releases/download/v3.0.0/Zyvro-v3.0.0-release.apk) | Production optimized, ProGuard shrunk, signed build for daily use. | ~137 MB |
-| **Debug APK** | [**Download Zyvro-v3.0.0-debug.apk**](https://github.com/Rishav7324/zyvro/releases/download/v3.0.0/Zyvro-v3.0.0-debug.apk) | Developer build with verbose logging and stack traces. | ~158 MB |
+| **Release APK (Recommended)** | [**Download Zyvro-v3.0.1-release.apk**](https://github.com/Rishav7324/zyvro/releases/download/v3.0.1/Zyvro-v3.0.1-release.apk) | Production optimized, ProGuard shrunk, signed build for daily use. | ~137 MB |
+| **Debug APK** | [**Download Zyvro-v3.0.1-debug.apk**](https://github.com/Rishav7324/zyvro/releases/download/v3.0.1/Zyvro-v3.0.1-debug.apk) | Developer build with verbose logging and stack traces. | ~158 MB |
 
 > **Requirement:** Android 8.0 (Oreo / API 26) through Android 15 (Vanilla Ice Cream / API 35).
 
