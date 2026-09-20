@@ -1,0 +1,35 @@
+Categories:
+  - Multimedia
+  - Internet
+License: GPL-3.0-or-later
+AuthorName: Rishav Raj
+AuthorEmail: rishav@zyvro.app
+SourceCode: https://github.com/Rishav7324/zyvro
+IssueTracker: https://github.com/Rishav7324/zyvro/issues
+Changelog: https://github.com/Rishav7324/zyvro/releases
+
+AutoName: Zyvro
+Summary: Universal media downloader, audio cutter, and offline player
+Description: |-
+  Zyvro is a modern, open-source Android media downloader, lossless audio cutter,
+  and offline player built with Jetpack Compose Material 3, yt-dlp, FFmpeg,
+  Aria2c, and AndroidX Media3.
+
+AntiFeatures:
+  - NonFreeNet
+
+RepoType: git
+Repo: https://github.com/Rishav7324/zyvro.git
+
+Builds:
+  - versionName: 3.0.1
+    versionCode: 25
+    commit: v3.0.1
+    subdir: app
+    gradle:
+      - yes
+
+AutoUpdateMode: Version v%v
+UpdateCheckMode: Tags
+CurrentVersion: 3.0.1
+CurrentVersionCode: 25

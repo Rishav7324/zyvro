@@ -1,0 +1,11 @@
+Zyvro is a modern, open-source Android media downloader, lossless audio cutter, and offline player built with Jetpack Compose Material 3 (Liquid Glass UI), yt-dlp, FFmpeg, Aria2c, and AndroidX Media3.
+
+Features:
+• Universal Media Downloader: Powered by yt-dlp supporting over 1,000+ sites including YouTube, Instagram, Facebook, Threads, Pinterest, TikTok, Twitter/X, Reddit, SoundCloud, Twitch, and Bilibili.
+• Instagram Reels & Photos: Supports video reels, carousels, and high-definition photo downloads with automatic tracking parameter cleanup.
+• Lossless Audio Cutter & Ringtone Maker: Hardware-accelerated audio trimming via MediaExtractor and MediaMuxer. Set any trimmed track as your phone ringtone or notification sound with one tap.
+• Background Lockscreen Player: AndroidX Media3 (ExoPlayer) with full lockscreen notification playback controls and mini-player bar.
+• Scoped Storage & MediaStore Synchronization: Downloaded media is immediately indexed by the system Gallery and music players on Android 10 through 15.
+• Aria2c Acceleration: Multi-connection segmented downloading for accelerated download speeds.
+• Bandwidth Limiter & Storage Chooser: Select your preferred download folder on internal storage or external SD cards, and throttle download speeds as needed.
+• 100% Free & Open Source: No ads, no trackers, no subscriptions, and zero analytics.
