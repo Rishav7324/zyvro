@@ -83,6 +83,8 @@ class DownloadService : Service() {
             val useAria2 = repository.preferences.useAria2.first()
             val customArgs = repository.preferences.customArguments.first()
             val ytAndroidClient = repository.preferences.ytAndroidClient.first()
+            val speedLimit = repository.preferences.speedLimit.first()
+            val customDir = repository.preferences.customDownloadDir.first()
             val taskId = "download_${download.id}"
 
             val result = YtDlpEngine.executeDownload(
@@ -97,7 +99,8 @@ class DownloadService : Service() {
                 useAria2 = useAria2,
                 customArgs = customArgs,
                 cookiesFile = cookiesFile,
-                ytAndroidClient = ytAndroidClient
+                ytAndroidClient = ytAndroidClient,
+                speedLimit = speedLimit
             ) { progress, speed, eta, _ ->
                 val progressPercent = progress.toInt().coerceIn(0, 100)
                 serviceScope.launch {
@@ -134,7 +137,8 @@ class DownloadService : Service() {
                             context = this@DownloadService,
                             srcFile = file,
                             mediaType = download.mediaType,
-                            title = download.title
+                            title = download.title,
+                            customDirUriOrPath = customDir
                         )
                         repository.markCompleted(download.id, publicFile.absolutePath)
                         // Requested-vs-actual proof: probe real video height into formatNote.

@@ -13,7 +13,9 @@ import com.zyvro.app.service.DownloadService
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import java.io.File
 
 sealed interface HomeUiState {
     object Idle : HomeUiState
@@ -47,15 +49,26 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.value = HomeUiState.Loading
 
         viewModelScope.launch {
-            val result = YtDlpEngine.fetchVideoInfo(getApplication(), targetUrl)
-            result.fold(
-                onSuccess = { info ->
-                    _uiState.value = HomeUiState.Success(info)
-                },
-                onFailure = { error ->
-                    _uiState.value = HomeUiState.Error(formatError(error))
-                }
-            )
+            val cookiesFile = runCatching {
+                val cookies = repository.preferences.cookiesContent.first()
+                if (cookies.isNotBlank()) {
+                    File(getApplication<Application>().cacheDir, "cookies_info.txt").also { it.writeText(cookies) }
+                } else null
+            }.getOrNull()
+
+            try {
+                val result = YtDlpEngine.fetchVideoInfo(getApplication(), targetUrl, cookiesFile)
+                result.fold(
+                    onSuccess = { info ->
+                        _uiState.value = HomeUiState.Success(info)
+                    },
+                    onFailure = { error ->
+                        _uiState.value = HomeUiState.Error(formatError(error))
+                    }
+                )
+            } finally {
+                cookiesFile?.delete()
+            }
         }
     }
 
@@ -67,9 +80,11 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         return when {
             !YtDlpEngine.lastInitError.isNullOrBlank() && !YtDlpEngine.isInitialized ->
                 "yt-dlp engine could not start. ${YtDlpEngine.lastInitError}"
+            detail != null && (detail.contains("login", ignoreCase = true) || detail.contains("rate-limit", ignoreCase = true)) ->
+                "Platform requested authentication or rate-limited. Try importing login cookies in Settings."
             detail != null -> detail
             error is java.net.UnknownHostException -> "No internet connection. Check your network and try again."
-            else -> "Could not read this link. Check the URL and try again."
+            else -> "Could not read this media link. Please verify the URL and try again."
         }
     }
 

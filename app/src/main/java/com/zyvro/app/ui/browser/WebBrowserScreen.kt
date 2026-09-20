@@ -87,13 +87,15 @@ fun WebBrowserScreen(
     val quickBookmarks = listOf(
         "YouTube" to "https://m.youtube.com",
         "Instagram" to "https://www.instagram.com",
+        "Facebook" to "https://m.facebook.com",
+        "Threads" to "https://www.threads.net",
+        "Pinterest" to "https://www.pinterest.com",
         "TikTok" to "https://www.tiktok.com",
         "X / Twitter" to "https://x.com",
         "Reddit" to "https://www.reddit.com",
         "SoundCloud" to "https://m.soundcloud.com",
         "Twitch" to "https://m.twitch.tv",
-        "Bilibili" to "https://m.bilibili.com",
-        "Pinterest" to "https://www.pinterest.com"
+        "Bilibili" to "https://m.bilibili.com"
     )
 
     BackHandler(enabled = canGoBack) {
@@ -342,5 +344,6 @@ private fun isMediaUrl(url: String): Boolean {
     return lower.contains(".mp4") || lower.contains(".m3u8") || lower.contains(".mpd") ||
            lower.contains(".webm") || lower.contains(".mp3") || lower.contains(".m4a") ||
            lower.contains("googlevideo.com/videoplayback") || lower.contains("tiktokcdn.com") ||
-           lower.contains("cdninstagram.com") || lower.contains("twimg.com")
+           lower.contains("cdninstagram.com") || lower.contains("twimg.com") ||
+           lower.contains("fbcdn.net") || lower.contains("pinimg.com")
 }

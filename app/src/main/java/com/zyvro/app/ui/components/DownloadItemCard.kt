@@ -47,6 +47,7 @@ fun DownloadItemCard(
     onPlay: ((DownloadEntity) -> Unit)? = null,
     onShare: ((DownloadEntity) -> Unit)? = null,
     onToggleFavorite: ((Long) -> Unit)? = null,
+    onTrim: ((DownloadEntity) -> Unit)? = null,
     isFavoriteOverride: Boolean? = null,
     modifier: Modifier = Modifier
 ) {
@@ -287,6 +288,22 @@ fun DownloadItemCard(
                                 Icons.Rounded.Share,
                                 contentDescription = "Share",
                                 tint = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                    if (onTrim != null) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        IconButton(
+                            onClick = { onTrim(download) },
+                            modifier = Modifier
+                                .size(38.dp)
+                                .liquidGlass(shape = CircleShape, elevation = 2.dp)
+                        ) {
+                            Icon(
+                                Icons.Rounded.ContentCut,
+                                contentDescription = "Trim Ringtone",
+                                tint = if (isDark) NovaCyan else NovaCyanDeep,
                                 modifier = Modifier.size(18.dp)
                             )
                         }

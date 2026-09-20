@@ -1,5 +1,6 @@
 package com.zyvro.app.ui.screens
 
+import android.content.Intent
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -23,6 +24,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -59,6 +61,9 @@ fun SettingsScreen(
     val accent by viewModel.accentColor.collectAsState()
     val cookiesContent by viewModel.cookiesContent.collectAsState()
     val ytAndroidClient by viewModel.ytAndroidClient.collectAsState()
+    val speedLimit by viewModel.speedLimit.collectAsState()
+    val autoResumeWifi by viewModel.autoResumeWifi.collectAsState()
+    val customDownloadDir by viewModel.customDownloadDir.collectAsState()
     val systemDark = isSystemInDarkTheme()
     val scope = rememberCoroutineScope()
 
@@ -73,12 +78,25 @@ fun SettingsScreen(
             }.getOrNull()
             if (text.isNullOrBlank()) {
                 Toast.makeText(context, "Could not read file", Toast.LENGTH_SHORT).show()
-            } else if (!text.contains("Netscape HTTP Cookie File") && !text.contains("youtube.com")) {
-                Toast.makeText(context, "Not a valid cookies.txt (needs youtube.com entries)", Toast.LENGTH_LONG).show()
+            } else if (!text.contains("Netscape HTTP Cookie File") && !text.contains("youtube.com") && !text.contains("instagram.com")) {
+                Toast.makeText(context, "Not a valid cookies.txt (needs youtube.com or instagram.com)", Toast.LENGTH_LONG).show()
             } else {
                 viewModel.setCookiesContent(text)
-                Toast.makeText(context, "YouTube login imported — HD unlocked", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "Login cookies imported successfully", Toast.LENGTH_SHORT).show()
             }
+        }
+    }
+
+    // Custom folder / SD card picker
+    val pickFolder = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri != null) {
+            val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            runCatching { context.contentResolver.takePersistableUriPermission(uri, flags) }
+            val path = uri.path ?: uri.toString()
+            viewModel.setCustomDownloadDir(path)
+            Toast.makeText(context, "Download directory updated", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -156,10 +174,10 @@ fun SettingsScreen(
             }
         }
 
-        // YOUTUBE LOGIN (unlocks 1080p+ behind YouTube bot-checks)
+        // PLATFORM LOGIN (YouTube & Instagram)
         IOSSection(
-            header = "YOUTUBE LOGIN",
-            footer = "Export cookies.txt from a logged-in desktop browser (devtools extension). Never uploaded — stays on this device."
+            header = "PLATFORM LOGIN (YouTube & Instagram)",
+            footer = "Export cookies.txt from a desktop browser (devtools extension). Unlocks 1080p/4K on YouTube and private/gated Instagram reels. Never uploaded — stays on this device."
         ) {
             IOSValueRow(
                 icon = Icons.Rounded.Cookie,
@@ -265,8 +283,56 @@ fun SettingsScreen(
             Spacer(Modifier.height(10.dp))
         }
 
-        // DOWNLOADS
-        IOSSection(header = "DOWNLOADS", footer = "Aria2 splits files into parallel segments for faster downloads.") {
+        // STORAGE & DOWNLOAD PATH
+        IOSSection(
+            header = "STORAGE & DOWNLOAD PATH",
+            footer = "By default, downloads export directly to Android MediaStore Gallery (Movies & Music). You can select an SD Card or custom directory."
+        ) {
+            IOSValueRow(
+                icon = Icons.Rounded.Folder,
+                title = "Download directory",
+                value = if (customDownloadDir.isBlank()) "Default (MediaStore Gallery)" else "Custom Folder"
+            )
+            if (customDownloadDir.isNotBlank()) {
+                Text(
+                    text = customDownloadDir,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                )
+            }
+            IOSDivider(startIndent = 16.dp)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Button(
+                    onClick = { pickFolder.launch(null) },
+                    modifier = Modifier.weight(1f).height(46.dp),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(Icons.Rounded.FolderOpen, null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(if (customDownloadDir.isBlank()) "Choose Custom Folder" else "Change Folder", fontWeight = FontWeight.SemiBold)
+                }
+                if (customDownloadDir.isNotBlank()) {
+                    OutlinedButton(
+                        onClick = { viewModel.setCustomDownloadDir("") },
+                        modifier = Modifier.height(46.dp),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Reset")
+                    }
+                }
+            }
+        }
+
+        // DOWNLOADS & NETWORK
+        IOSSection(header = "DOWNLOADS & BANDWIDTH", footer = "Speed limiter applies to both Aria2 multi-chunk and yt-dlp engines.") {
             IOSSwitchRow(
                 icon = Icons.Rounded.Bolt,
                 title = "Aria2 acceleration",
@@ -291,6 +357,44 @@ fun SettingsScreen(
                     )
                 }
             }
+            IOSDivider(startIndent = 16.dp)
+            Text(
+                text = "Download speed limiter",
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 6.dp)
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                val limits = listOf("Unlimited", "2M", "5M", "10M")
+                limits.forEach { limit ->
+                    val isSelected = speedLimit.equals(limit, ignoreCase = true)
+                    FilterChip(
+                        selected = isSelected,
+                        onClick = { viewModel.setSpeedLimit(limit) },
+                        label = {
+                            Text(
+                                if (limit == "Unlimited") "No Limit" else "$limit/s",
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                fontSize = 11.5.sp
+                            )
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            IOSDivider(startIndent = 58.dp)
+            IOSSwitchRow(
+                icon = Icons.Rounded.Wifi,
+                title = "Auto-resume on Wi-Fi",
+                subtitle = "Resume interrupted downloads when connected to Wi-Fi",
+                checked = autoResumeWifi,
+                onCheckedChange = { viewModel.setAutoResumeWifi(it) }
+            )
         }
 
         // PROCESSING

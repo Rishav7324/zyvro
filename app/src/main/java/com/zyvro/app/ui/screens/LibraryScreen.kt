@@ -35,6 +35,7 @@ import com.zyvro.app.data.local.fileSize
 import com.zyvro.app.data.scanner.LocalMediaScanner
 import com.zyvro.app.player.MediaPlayerManager
 import com.zyvro.app.ui.components.AppleSpringSpec
+import com.zyvro.app.ui.components.AudioTrimmerDialog
 import com.zyvro.app.ui.components.DownloadItemCard
 import com.zyvro.app.ui.components.LiquidGlassCard
 import com.zyvro.app.ui.components.LiquidGlassPill
@@ -65,6 +66,7 @@ fun LibraryScreen(
     var activeTab by remember { mutableIntStateOf(0) } // 0: Downloads, 1: Device Storage
     val localDeviceMedia = remember { mutableStateListOf<DownloadEntity>() }
     var isScanning by remember { mutableStateOf(false) }
+    var trimmingItem by remember { mutableStateOf<DownloadEntity?>(null) }
 
     fun refreshLocalMedia() {
         scope.launch {
@@ -547,6 +549,7 @@ fun LibraryScreen(
                         onDelete = { id -> viewModel.deleteDownload(id) },
                         onPlay = { playerManager.playMedia(item) },
                         onShare = { shareMedia(context, item) },
+                        onTrim = { trimmingItem = it },
                         onToggleFavorite = { _ ->
                             if (isDeviceTab) viewModel.toggleDeviceFavorite(item.targetPath)
                             else viewModel.toggleFavorite(item.id)
@@ -558,6 +561,13 @@ fun LibraryScreen(
                 }
             }
         }
+    }
+
+    trimmingItem?.let { target ->
+        AudioTrimmerDialog(
+            media = target,
+            onDismiss = { trimmingItem = null }
+        )
     }
 }
 

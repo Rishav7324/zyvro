@@ -2,5 +2,5 @@
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
     <!-- Matches the baked-in black background of zyvro_icon_foreground.png so the
          adaptive icon blends seamlessly on all mask shapes. -->
-    <solid android:color="#000000" />
+    <solid android:color="#05090E" />
 </shape>

@@ -193,17 +193,19 @@ fun PermissionScreen(
                 Box(
                     modifier = Modifier
                         .size(76.dp)
+                        .shadow(16.dp, RoundedCornerShape(22.dp), spotColor = NovaAqua)
                         .clip(RoundedCornerShape(22.dp))
-                        .shadow(16.dp, RoundedCornerShape(22.dp), ambientColor = NovaAqua)
-                        .background(Color.White.copy(alpha = 0.95f)),
+                        .border(
+                            1.5.dp,
+                            Brush.linearGradient(listOf(NovaAqua, DeepCyan.copy(alpha = 0.5f))),
+                            RoundedCornerShape(22.dp)
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
                     Image(
                         painter = painterResource(id = R.drawable.app_logo),
                         contentDescription = "Zyvro Logo",
-                        modifier = Modifier
-                            .size(62.dp)
-                            .clip(RoundedCornerShape(18.dp))
+                        modifier = Modifier.fillMaxSize()
                     )
                 }
 

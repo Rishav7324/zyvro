@@ -41,15 +41,35 @@ fun FormatSelectionSheet(
 ) {
     var tab by remember { mutableIntStateOf(0) }
     val isDark = LocalAppDark.current
+    val isInstagram = remember(videoInfo) {
+        videoInfo.extractor.contains("instagram", ignoreCase = true)
+    }
+    val isImageMedia = remember(videoInfo) {
+        videoInfo.formats.any { it.extension in listOf("jpg", "jpeg", "png", "webp") } ||
+        videoInfo.title.contains("photo", ignoreCase = true)
+    }
     val videos = remember(videoInfo) {
-        videoInfo.formats.filter { !it.isAudioOnly }
-            .filter { it.resolution.endsWith("p") }
+        val nonAudio = videoInfo.formats.filter { !it.isAudioOnly }
+        val pList = nonAudio.filter { it.resolution.endsWith("p") }
             .sortedByDescending { it.resolution.removeSuffix("p").toIntOrNull() ?: 0 }
             .distinctBy { it.resolution }
             .take(8)
+        if (pList.isNotEmpty()) {
+            pList
+        } else {
+            nonAudio.distinctBy { it.resolution }.take(8)
+        }
     }
-    val best = DownloadFormat("bestvideo+bestaudio/best", "mp4", "Best (Highest)", "Merged video + audio stream", false)
-    val qualities = remember(videos) { listOf(best) + videos }
+    val best = remember(isInstagram, isImageMedia) {
+        if (isInstagram || isImageMedia) {
+            DownloadFormat("best", if (isImageMedia) "jpg" else "mp4", "Best (Original)", "Optimal Platform Stream", false)
+        } else {
+            DownloadFormat("bestvideo+bestaudio/best", "mp4", "Best (Highest)", "Merged video + audio stream", false)
+        }
+    }
+    val qualities = remember(videos, best) {
+        if (videos.any { it.formatId == best.formatId }) videos else listOf(best) + videos
+    }
     val audioOutputs = listOf("mp3", "m4a", "opus", "wav", "flac")
     var selectedVideo by remember(qualities) { mutableStateOf(qualities.first().formatId) }
     var selectedAudio by remember { mutableStateOf("mp3") }
@@ -150,7 +170,7 @@ fun FormatSelectionSheet(
                     ) {
                         TextButton(onClick = { tab = 0 }, modifier = Modifier.fillMaxSize()) {
                             Text(
-                                "Video & Audio",
+                                if (isImageMedia) "Photo / Image" else "Video & Audio",
                                 fontWeight = FontWeight.Bold,
                                 color = if (tab == 0) (if (isDark) NovaCyan else Color(0xFF0C2326)) else MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -182,7 +202,7 @@ fun FormatSelectionSheet(
             if (tab == 0) {
                 item {
                     Text(
-                        "AVAILABLE VIDEO STREAMS",
+                        if (isImageMedia) "AVAILABLE MEDIA & PHOTO FORMATS" else "AVAILABLE VIDEO STREAMS",
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
                         color = if (isDark) NovaCyan else NovaPrimary
@@ -301,8 +321,9 @@ private fun QualityCard(format: DownloadFormat, selected: Boolean, isDark: Boole
                     ),
                 contentAlignment = Alignment.Center
             ) {
+                val isImg = format.extension in listOf("jpg", "jpeg", "png", "webp")
                 Icon(
-                    Icons.Rounded.Videocam,
+                    if (isImg) Icons.Rounded.Image else Icons.Rounded.Videocam,
                     null,
                     tint = if (selected) (if (isDark) NovaCyan else NovaPrimary) else MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(20.dp)

@@ -46,6 +46,14 @@
             </intent-filter>
         </activity>
         <service android:name=".service.DownloadService" android:exported="false" android:foregroundServiceType="dataSync" />
+        <receiver android:name=".service.MediaControlReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="com.zyvro.app.ACTION_PLAY_PAUSE" />
+                <action android:name="com.zyvro.app.ACTION_PREVIOUS" />
+                <action android:name="com.zyvro.app.ACTION_NEXT" />
+                <action android:name="com.zyvro.app.ACTION_STOP" />
+            </intent-filter>
+        </receiver>
         <provider android:name="androidx.core.content.FileProvider" android:authorities="${applicationId}.provider" android:exported="false" android:grantUriPermissions="true">
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
         </provider>

@@ -65,13 +65,16 @@ import com.zyvro.app.ui.components.equalizer.EqualizerDialog
 import com.zyvro.app.ui.components.ambientLiquidBackground
 import com.zyvro.app.ui.components.liquidGlass
 import com.zyvro.app.ui.theme.AccentOrange
+import com.zyvro.app.ui.theme.FacebookBlue
 import com.zyvro.app.ui.theme.InstagramPink
 import com.zyvro.app.ui.theme.NovaAqua
 import com.zyvro.app.ui.theme.NovaAquaDeep
 import com.zyvro.app.ui.theme.NovaAquaSoft
 import com.zyvro.app.ui.theme.NovaInk
+import com.zyvro.app.ui.theme.PinterestRed
 import com.zyvro.app.ui.theme.RedditOrange
 import com.zyvro.app.ui.theme.SoundCloudOrange
+import com.zyvro.app.ui.theme.ThreadsDark
 import com.zyvro.app.ui.theme.TikTokCyan
 import com.zyvro.app.ui.theme.TwitchPurple
 import com.zyvro.app.ui.theme.TwitterBlue
@@ -109,7 +112,11 @@ fun HomeScreen(
             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
             if (clipboard != null && clipboard.hasPrimaryClip() && clipboard.primaryClipDescription?.hasMimeType(ClipDescription.MIMETYPE_TEXT_PLAIN) == true) {
                 val text = clipboard.primaryClip?.getItemAt(0)?.text?.toString()?.trim() ?: ""
-                if ((text.startsWith("http://") || text.startsWith("https://") || text.contains("youtu") || text.contains("instagram") || text.contains("tiktok") || text.contains("twitter") || text.contains("reddit")) && text != urlInput) {
+                val isMediaLink = text.startsWith("http://") || text.startsWith("https://") ||
+                        text.contains("youtu") || text.contains("instagram") || text.contains("facebook") ||
+                        text.contains("fb.watch") || text.contains("threads") || text.contains("pinterest") ||
+                        text.contains("pin.it") || text.contains("tiktok") || text.contains("twitter") || text.contains("x.com") || text.contains("reddit")
+                if (isMediaLink && text != urlInput) {
                     clipboardDetectedUrl = text
                 }
             }
@@ -119,6 +126,9 @@ fun HomeScreen(
     val platforms = listOf(
         Triple("YouTube", YouTubeRed, "https://m.youtube.com"),
         Triple("Instagram", InstagramPink, "https://www.instagram.com"),
+        Triple("Facebook", FacebookBlue, "https://m.facebook.com"),
+        Triple("Threads", if (isDark) Color.White else ThreadsDark, "https://www.threads.net"),
+        Triple("Pinterest", PinterestRed, "https://www.pinterest.com"),
         Triple("TikTok", TikTokCyan, "https://www.tiktok.com"),
         Triple("X / Twitter", TwitterBlue, "https://x.com"),
         Triple("SoundCloud", SoundCloudOrange, "https://m.soundcloud.com"),
@@ -151,18 +161,20 @@ fun HomeScreen(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Box(
                                 modifier = Modifier
-                                    .size(48.dp)
-                                    .clip(RoundedCornerShape(14.dp))
-                                    .shadow(6.dp, RoundedCornerShape(14.dp))
-                                    .background(Color.White.copy(alpha = 0.9f)),
+                                    .size(52.dp)
+                                    .shadow(10.dp, RoundedCornerShape(15.dp), spotColor = NovaAqua)
+                                    .clip(RoundedCornerShape(15.dp))
+                                    .border(
+                                        1.dp,
+                                        Brush.linearGradient(listOf(NovaAqua.copy(alpha = 0.6f), Color.Transparent)),
+                                        RoundedCornerShape(15.dp)
+                                    ),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Image(
                                     painter = painterResource(id = R.drawable.app_logo),
                                     contentDescription = "Zyvro Logo",
-                                    modifier = Modifier
-                                        .size(42.dp)
-                                        .clip(RoundedCornerShape(12.dp))
+                                    modifier = Modifier.fillMaxSize()
                                 )
                             }
                             Spacer(modifier = Modifier.width(14.dp))

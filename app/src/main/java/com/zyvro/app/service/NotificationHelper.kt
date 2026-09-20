@@ -13,7 +13,15 @@ import com.zyvro.app.ui.MainActivity
 object NotificationHelper {
     const val CHANNEL_DOWNLOADS = "ytdlp_downloads_channel"
     const val CHANNEL_COMPLETED = "ytdlp_completed_channel"
+    const val CHANNEL_PLAYBACK = "zyvro_playback_channel"
+
     const val NOTIFICATION_ID_FOREGROUND = 1001
+    const val NOTIFICATION_ID_PLAYBACK = 2001
+
+    const val ACTION_PLAY_PAUSE = "com.zyvro.app.ACTION_PLAY_PAUSE"
+    const val ACTION_PREVIOUS = "com.zyvro.app.ACTION_PREVIOUS"
+    const val ACTION_NEXT = "com.zyvro.app.ACTION_NEXT"
+    const val ACTION_STOP = "com.zyvro.app.ACTION_STOP"
 
     fun createNotificationChannels(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -37,8 +45,19 @@ object NotificationHelper {
                 description = "Notifications when downloads finish"
             }
 
+            val playbackChannel = NotificationChannel(
+                CHANNEL_PLAYBACK,
+                "Media Playback",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "Shows active media playback controls on lockscreen and shade"
+                enableVibration(false)
+                setSound(null, null)
+            }
+
             notificationManager.createNotificationChannel(downloadChannel)
             notificationManager.createNotificationChannel(completedChannel)
+            notificationManager.createNotificationChannel(playbackChannel)
         }
     }
 
@@ -94,5 +113,60 @@ object NotificationHelper {
             .build()
 
         notificationManager.notify(notificationId, notification)
+    }
+
+    fun updateMediaPlaybackNotification(
+        context: Context,
+        title: String,
+        artist: String,
+        isPlaying: Boolean
+    ) {
+        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+        val openIntent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
+        }
+        val contentPending = PendingIntent.getActivity(
+            context,
+            201,
+            openIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val prevIntent = Intent(context, MediaControlReceiver::class.java).apply { action = ACTION_PREVIOUS }
+        val prevPending = PendingIntent.getBroadcast(context, 202, prevIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+
+        val playPauseIntent = Intent(context, MediaControlReceiver::class.java).apply { action = ACTION_PLAY_PAUSE }
+        val playPausePending = PendingIntent.getBroadcast(context, 203, playPauseIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+
+        val nextIntent = Intent(context, MediaControlReceiver::class.java).apply { action = ACTION_NEXT }
+        val nextPending = PendingIntent.getBroadcast(context, 204, nextIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+
+        val stopIntent = Intent(context, MediaControlReceiver::class.java).apply { action = ACTION_STOP }
+        val stopPending = PendingIntent.getBroadcast(context, 205, stopIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+
+        val notification = NotificationCompat.Builder(context, CHANNEL_PLAYBACK)
+            .setContentTitle(title)
+            .setContentText(artist.ifBlank { "Zyvro Player" })
+            .setSmallIcon(android.R.drawable.ic_media_play)
+            .setContentIntent(contentPending)
+            .setDeleteIntent(stopPending)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setOngoing(isPlaying)
+            .addAction(android.R.drawable.ic_media_previous, "Previous", prevPending)
+            .addAction(
+                if (isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play,
+                if (isPlaying) "Pause" else "Play",
+                playPausePending
+            )
+            .addAction(android.R.drawable.ic_media_next, "Next", nextPending)
+            .build()
+
+        notificationManager.notify(NOTIFICATION_ID_PLAYBACK, notification)
+    }
+
+    fun cancelMediaPlaybackNotification(context: Context) {
+        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        notificationManager.cancel(NOTIFICATION_ID_PLAYBACK)
     }
 }

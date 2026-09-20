@@ -37,6 +37,9 @@ class AppPreferences(private val context: Context) {
         val KEY_ACCENT_COLOR = stringPreferencesKey("accent_color")
         val KEY_DEVICE_FAVORITES = stringSetPreferencesKey("favorite_device_paths")
         val KEY_YT_ANDROID_CLIENT = booleanPreferencesKey("yt_android_client")
+        val KEY_SPEED_LIMIT = stringPreferencesKey("speed_limit")
+        val KEY_AUTO_RESUME_WIFI = booleanPreferencesKey("auto_resume_wifi")
+        val KEY_CUSTOM_DOWNLOAD_DIR = stringPreferencesKey("custom_download_dir")
     }
 
     private val defaultDownloadDir: String
@@ -191,5 +194,32 @@ class AppPreferences(private val context: Context) {
 
     suspend fun clearResumePosition(mediaId: Long) {
         context.dataStore.edit { it.remove(longPreferencesKey("resume_pos_$mediaId")) }
+    }
+
+    /** Bandwidth limit for Aria2 and yt-dlp: 0 = unlimited, 1M, 5M, 10M, 20M. */
+    val speedLimit: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[KEY_SPEED_LIMIT] ?: "Unlimited"
+    }
+
+    suspend fun setSpeedLimit(limit: String) {
+        context.dataStore.edit { it[KEY_SPEED_LIMIT] = limit }
+    }
+
+    /** Auto-resume incomplete downloads only on unmetered Wi-Fi connections. */
+    val autoResumeWifi: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[KEY_AUTO_RESUME_WIFI] ?: false
+    }
+
+    suspend fun setAutoResumeWifi(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_AUTO_RESUME_WIFI] = enabled }
+    }
+
+    /** Custom download location (URI or absolute path) */
+    val customDownloadDir: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[KEY_CUSTOM_DOWNLOAD_DIR] ?: ""
+    }
+
+    suspend fun setCustomDownloadDir(dir: String) {
+        context.dataStore.edit { it[KEY_CUSTOM_DOWNLOAD_DIR] = dir }
     }
 }

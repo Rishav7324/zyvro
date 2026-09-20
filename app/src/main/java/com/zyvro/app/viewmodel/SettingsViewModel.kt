@@ -34,6 +34,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     val aria2Connections = preferences.aria2Connections.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 8)
     val accentColor = preferences.accentColor.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "TEAL")
     val ytAndroidClient = preferences.ytAndroidClient.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+    val speedLimit = preferences.speedLimit.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "Unlimited")
+    val autoResumeWifi = preferences.autoResumeWifi.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+    val customDownloadDir = preferences.customDownloadDir.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
 
     private val _engineVersion = MutableStateFlow("Loading...")
     val engineVersion: StateFlow<String> = _engineVersion.asStateFlow()
@@ -78,4 +81,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun setAria2Connections(count: Int) = viewModelScope.launch { preferences.setAria2Connections(count) }
     fun setAccentColor(accent: String) = viewModelScope.launch { preferences.setAccentColor(accent) }
     fun setYtAndroidClient(enabled: Boolean) = viewModelScope.launch { preferences.setYtAndroidClient(enabled) }
+    fun setSpeedLimit(limit: String) = viewModelScope.launch { preferences.setSpeedLimit(limit) }
+    fun setAutoResumeWifi(enabled: Boolean) = viewModelScope.launch { preferences.setAutoResumeWifi(enabled) }
+    fun setCustomDownloadDir(dir: String) = viewModelScope.launch { preferences.setCustomDownloadDir(dir) }
 }

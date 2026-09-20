@@ -27,6 +27,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import com.zyvro.app.service.NotificationHelper
 import java.io.File
 
 /** A single selectable audio/subtitle track surfaced to the UI. */
@@ -38,7 +39,7 @@ data class PlayerTrack(
 )
 
 @OptIn(UnstableApi::class)
-class MediaPlayerManager private constructor(context: Context) {
+class MediaPlayerManager private constructor(private val context: Context) {
 
     val player: ExoPlayer = ExoPlayer.Builder(context.applicationContext)
         .setAudioAttributes(
@@ -113,6 +114,7 @@ class MediaPlayerManager private constructor(context: Context) {
             override fun onIsPlayingChanged(playing: Boolean) {
                 _isPlaying.value = playing
                 if (playing) startProgressTracking() else stopProgressTracking()
+                updateNotification()
             }
 
             override fun onPlaybackStateChanged(state: Int) {
@@ -123,6 +125,7 @@ class MediaPlayerManager private constructor(context: Context) {
                 } else if (state == Player.STATE_ENDED) {
                     // Native playlist already auto-advanced; just drop the bookmark.
                     persistResumePosition()
+                    updateNotification()
                 }
             }
 
@@ -141,6 +144,7 @@ class MediaPlayerManager private constructor(context: Context) {
                     }
                     clearAbLoop()
                     _playerError.value = null
+                    updateNotification()
                 }
             }
 
@@ -533,6 +537,22 @@ class MediaPlayerManager private constructor(context: Context) {
         clearAbLoop()
         AudioFxManager.instance.release()
         stopProgressTracking()
+        NotificationHelper.cancelMediaPlaybackNotification(context)
+    }
+
+    fun stopMedia() = closePlayer()
+
+    private fun updateNotification() {
+        val media = _currentMedia.value ?: run {
+            NotificationHelper.cancelMediaPlaybackNotification(context)
+            return
+        }
+        NotificationHelper.updateMediaPlaybackNotification(
+            context = context,
+            title = media.title,
+            artist = media.uploader,
+            isPlaying = _isPlaying.value
+        )
     }
 
     companion object {

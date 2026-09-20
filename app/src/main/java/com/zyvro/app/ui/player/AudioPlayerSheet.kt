@@ -28,6 +28,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.rounded.ContentCut
+import com.zyvro.app.ui.components.AudioTrimmerDialog
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -122,6 +124,7 @@ fun AudioPlayerSheet(onDismiss: () -> Unit) {
 
     var selectedTab by remember { mutableIntStateOf(0) }
     var showEqualizer by remember { mutableStateOf(false) }
+    var showTrimmer by remember { mutableStateOf(false) }
     var showPlaylistDialog by remember { mutableStateOf(false) }
     var sleepTimerMinutes by remember { mutableIntStateOf(0) }
     var sleepTimerJob by remember { mutableStateOf<Job?>(null) }
@@ -223,6 +226,9 @@ fun AudioPlayerSheet(onDismiss: () -> Unit) {
                             }
                             IconButton(onClick = { showEqualizer = true }) {
                                 Icon(Icons.Default.Tune, "Equalizer", tint = NovaAqua)
+                            }
+                            IconButton(onClick = { showTrimmer = true }) {
+                                Icon(Icons.Rounded.ContentCut, "Trim & Ringtone", tint = NovaAqua)
                             }
                         }
                     }
@@ -649,6 +655,10 @@ fun AudioPlayerSheet(onDismiss: () -> Unit) {
 
         if (showEqualizer) {
             EqualizerDialog(onDismiss = { showEqualizer = false })
+        }
+
+        if (showTrimmer) {
+            AudioTrimmerDialog(media = item, onDismiss = { showTrimmer = false })
         }
 
         if (showPlaylistDialog && isDbItem) {

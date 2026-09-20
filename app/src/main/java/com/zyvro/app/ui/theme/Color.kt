@@ -40,7 +40,9 @@ val CardBorderDark = Color(0xFF2E4B66)
 val TextPrimaryDark = Color(0xFFF0F8FF)
 val TextSecondaryDark = Color(0xFF90A8BD)
 
-// Platform Brand Colors (from Penpot Specifications)
+val FacebookBlue = Color(0xFF1877F2)
+val ThreadsDark = Color(0xFF101010)
+val PinterestRed = Color(0xFFE60023)
 val YouTubeRed = Color(0xFFE11D48)          // Penpot YouTube Red
 val InstagramPink = Color(0xFFE1306C)
 val TikTokCyan = Color(0xFF00F2FE)
