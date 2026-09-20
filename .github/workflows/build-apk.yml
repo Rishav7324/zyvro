@@ -66,10 +66,22 @@ jobs:
 
       - name: Verify release signature
         run: |
-          APK=$(ls app/build/outputs/apk/release/*.apk | head -n 1)
-          echo "Verifying $APK"
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "$APK" || \
-          ls "$ANDROID_HOME/build-tools/" | sort -V | tail -n 1 | xargs -I{} "$ANDROID_HOME/build-tools/{}/apksigner" verify --print-certs "$APK"
+          for APK in app/build/outputs/apk/release/*.apk; do
+            [ -f "$APK" ] || continue
+            echo "Verifying $APK"
+            "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "$APK" || \
+            ls "$ANDROID_HOME/build-tools/" | sort -V | tail -n 1 | xargs -I{} "$ANDROID_HOME/build-tools/{}/apksigner" verify --print-certs "$APK"
+          done
+
+      - name: Prepare branded release APK names
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          cd app/build/outputs/apk/release/
+          [ -f "app-arm64-v8a-release.apk" ] && cp -v "app-arm64-v8a-release.apk" "Zyvro-${TAG}-arm64-v8a.apk"
+          [ -f "app-armeabi-v7a-release.apk" ] && cp -v "app-armeabi-v7a-release.apk" "Zyvro-${TAG}-armeabi-v7a.apk"
+          [ -f "app-universal-release.apk" ] && cp -v "app-universal-release.apk" "Zyvro-${TAG}-universal.apk"
+          ls -lh
 
       - name: Upload APK artifacts
         uses: actions/upload-artifact@v4
