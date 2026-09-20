@@ -197,7 +197,7 @@ fun PermissionScreen(
                         .clip(RoundedCornerShape(22.dp))
                         .border(
                             1.5.dp,
-                            Brush.linearGradient(listOf(NovaAqua, DeepCyan.copy(alpha = 0.5f))),
+                            Brush.linearGradient(listOf(NovaAqua, NovaAquaDeep.copy(alpha = 0.5f))),
                             RoundedCornerShape(22.dp)
                         ),
                     contentAlignment = Alignment.Center

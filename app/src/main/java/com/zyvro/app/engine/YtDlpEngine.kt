@@ -108,7 +108,8 @@ object YtDlpEngine {
         runCatching {
             ensureInitialized(context).getOrThrow()
             val normalized = normalizeUrl(url)
-            val isMeta = normalized.contains("instagram.com") ||
+            val isInstagram = normalized.contains("instagram.com")
+            val isMeta = isInstagram ||
                     normalized.contains("facebook.com") ||
                     normalized.contains("fb.watch") ||
                     normalized.contains("threads.net")
@@ -201,7 +202,8 @@ object YtDlpEngine {
             ensureInitialized(context).getOrThrow()
             val validDir = outputDir.takeIf { it.exists() || it.mkdirs() } ?: context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: context.filesDir
             val normalized = normalizeUrl(url)
-            val isMeta = normalized.contains("instagram.com") ||
+            val isInstagram = normalized.contains("instagram.com")
+            val isMeta = isInstagram ||
                     normalized.contains("facebook.com") ||
                     normalized.contains("fb.watch") ||
                     normalized.contains("threads.net") ||

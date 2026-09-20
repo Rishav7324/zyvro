@@ -48,9 +48,9 @@ fun AudioTrimmerDialog(
     val isDark = LocalAppDark.current
 
     val inputFile = remember { File(media.targetPath) }
-    var totalDurationMs by remember { mutableLongStateOf(media.duration * 1000L) }
+    var totalDurationMs by remember { mutableLongStateOf(media.durationSeconds * 1000L) }
     var startMs by remember { mutableLongStateOf(0L) }
-    var endMs by remember { mutableLongStateOf(if (media.duration > 0) (media.duration * 1000L).coerceAtMost(30000L) else 30000L) }
+    var endMs by remember { mutableLongStateOf(if (media.durationSeconds > 0) (media.durationSeconds * 1000L).coerceAtMost(30000L) else 30000L) }
 
     var isPreviewPlaying by remember { mutableStateOf(false) }
     var isProcessing by remember { mutableStateOf(false) }
