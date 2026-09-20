@@ -117,9 +117,6 @@ object YtDlpEngine {
             val request = YoutubeDLRequest(normalized).apply {
                 addOption("--no-playlist")
                 addOption("--user-agent", DEFAULT_USER_AGENT)
-                if (isMeta) {
-                    addOption("--compat-options", "no-youtube-prefer-utc-alias")
-                }
                 if (cookiesFile?.exists() == true) {
                     addOption("--cookies", cookiesFile.absolutePath)
                 }
@@ -217,20 +214,17 @@ object YtDlpEngine {
                 addOption("--newline")
                 addOption("--no-playlist")
                 addOption("--user-agent", DEFAULT_USER_AGENT)
-                if (isMeta) {
-                    addOption("--compat-options", "no-youtube-prefer-utc-alias")
-                }
             }
 
             if (speedLimit.isNotBlank() && speedLimit != "0" && !speedLimit.equals("Unlimited", ignoreCase = true)) {
-                if (useAria2 && isAria2Initialized) {
+                if (useAria2 && isAria2Initialized && !isMeta) {
                     request.addOption("--downloader-args", "aria2c:--max-download-limit=$speedLimit")
                 } else {
                     request.addOption("--limit-rate", speedLimit)
                 }
             }
 
-            if (useAria2 && isAria2Initialized) {
+            if (useAria2 && isAria2Initialized && !isMeta) {
                 request.addOption("--downloader", "libaria2c.so")
             } else {
                 request.addOption("--concurrent-fragments", "4")
