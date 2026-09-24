@@ -77,14 +77,29 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             .mapNotNull { it.message?.trim()?.takeIf(String::isNotBlank) }
             .firstOrNull { it.length >= 8 }
 
+        if (!YtDlpEngine.lastInitError.isNullOrBlank() && !YtDlpEngine.isInitialized) {
+            return "yt-dlp engine could not start. ${YtDlpEngine.lastInitError}"
+        }
+        if (error is java.net.UnknownHostException) {
+            return "No internet connection. Check your network and try again."
+        }
+        if (detail == null) return "Could not read this media link. Please verify the URL and try again."
+        // Engine already returns typed, user-friendly prefixes — pass them through
+        // after stripping the machine tag, so Home error card + hint stay in sync.
+        val typed = when {
+            detail.startsWith("LOGIN_REQUIRED:") -> detail.removePrefix("LOGIN_REQUIRED:").trim()
+            detail.startsWith("RATE_LIMITED:") -> detail.removePrefix("RATE_LIMITED:").trim()
+            detail.startsWith("UNSUPPORTED:") -> detail.removePrefix("UNSUPPORTED:").trim()
+            detail.startsWith("NETWORK:") -> detail.removePrefix("NETWORK:").trim()
+            detail.startsWith("FETCH_FAILED:") -> detail.removePrefix("FETCH_FAILED:").trim()
+            else -> null
+        }
+        if (typed != null) return typed.ifBlank { "Could not read this media link. Please verify the URL and try again." }
+
         return when {
-            !YtDlpEngine.lastInitError.isNullOrBlank() && !YtDlpEngine.isInitialized ->
-                "yt-dlp engine could not start. ${YtDlpEngine.lastInitError}"
-            detail != null && (detail.contains("login", ignoreCase = true) || detail.contains("rate-limit", ignoreCase = true)) ->
-                "Platform requested authentication or rate-limited. Try importing login cookies in Settings."
-            detail != null -> detail
-            error is java.net.UnknownHostException -> "No internet connection. Check your network and try again."
-            else -> "Could not read this media link. Please verify the URL and try again."
+            detail.contains("login", ignoreCase = true) || detail.contains("rate-limit", ignoreCase = true) ->
+                "Platform requested authentication or rate-limited. Public link try karo, ya Settings me login cookies import karo."
+            else -> detail.take(400)
         }
     }
 

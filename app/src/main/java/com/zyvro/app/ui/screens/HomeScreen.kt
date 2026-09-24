@@ -135,6 +135,9 @@ fun HomeScreen(
         Triple("Twitch", TwitchPurple, "https://m.twitch.tv"),
         Triple("Reddit", RedditOrange, "https://www.reddit.com")
     )
+    // Minimal hub: 5 curated first, rest behind "More".
+    var showAllPlatforms by remember { mutableStateOf(false) }
+    val visiblePlatforms = if (showAllPlatforms) platforms else platforms.take(5)
 
     LazyColumn(
         modifier = Modifier
@@ -268,7 +271,7 @@ fun HomeScreen(
                                 .padding(vertical = 6.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text("Aria2c: 16x Turbo", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = chipTextColor)
+                            Text("Turbo Engine", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = chipTextColor)
                         }
                         Box(
                             modifier = Modifier
@@ -278,7 +281,7 @@ fun HomeScreen(
                                 .padding(vertical = 6.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text("4K Ultra HD", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = chipTextColor)
+                            Text("HD Quality", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = chipTextColor)
                         }
                         Box(
                             modifier = Modifier
@@ -288,7 +291,7 @@ fun HomeScreen(
                                 .padding(vertical = 6.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text("FFmpeg 6.0 Core", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = chipTextColor)
+                            Text("100% Private", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = chipTextColor)
                         }
                     }
                 }
@@ -433,18 +436,19 @@ fun HomeScreen(
             }
         }
 
-        // Supported Platforms Horizontal Hub
+        // Supported Platforms — minimal hub (5 curated + More)
         item {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                platforms.forEach { (name, color, siteUrl) ->
+                visiblePlatforms.forEach { (name, color, siteUrl) ->
                     LiquidGlassCard(
                         shape = RoundedCornerShape(18.dp),
-                        elevation = 4.dp,
+                        elevation = 2.dp,
                         onClick = { onNavigateToBrowser(siteUrl) }
                     ) {
                         Row(
@@ -462,6 +466,14 @@ fun HomeScreen(
                             Text(name, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                         }
                     }
+                }
+                // More / Less toggle keeps Home clean on small screens.
+                LiquidGlassPill(onClick = { showAllPlatforms = !showAllPlatforms }) {
+                    Text(
+                        if (showAllPlatforms) "Less" else "+${platforms.size - visiblePlatforms.size} More",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp
+                    )
                 }
             }
         }
@@ -507,12 +519,56 @@ fun HomeScreen(
                         shape = RoundedCornerShape(22.dp),
                         tintColor = MaterialTheme.colorScheme.error
                     ) {
-                        Text(
-                            text = state.message,
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.padding(16.dp)
-                        )
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(
+                                text = state.message,
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            // IG/FB hint: login-wall vs bad link me farq dikhao.
+                            val hint = when {
+                                state.message.contains("login", ignoreCase = true) ||
+                                        state.message.contains("cookies", ignoreCase = true) ->
+                                    "Ye link login maang raha hai. Settings me cookies.txt import karo, phir retry dabao."
+                                state.message.contains("rate", ignoreCase = true) ->
+                                    "Platform ne request limit lagayi hai. 1-2 min ruk kar retry karo."
+                                else ->
+                                    "Link public hona chahiye. Private/deleted post download nahi hoga."
+                            }
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = hint,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Button(
+                                    onClick = {
+                                        if (urlInput.isNotBlank()) viewModel.parseUrl(urlInput)
+                                    },
+                                    modifier = Modifier.weight(1f).height(44.dp),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Text("Retry", fontWeight = FontWeight.Bold)
+                                }
+                                OutlinedButton(
+                                    onClick = {
+                                        runCatching {
+                                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                                            clipboard?.setPrimaryClip(
+                                                android.content.ClipData.newPlainText("zyvro-url", urlInput)
+                                            )
+                                        }
+                                    },
+                                    modifier = Modifier.weight(1f).height(44.dp),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Text("Copy link", fontWeight = FontWeight.SemiBold)
+                                }
+                            }
+                        }
                     }
                 }
                 HomeUiState.Idle -> { }

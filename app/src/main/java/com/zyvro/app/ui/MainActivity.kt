@@ -32,6 +32,7 @@ import kotlinx.coroutines.launch
  */
 class MainActivity : ComponentActivity() {
     private var sharedUrlState: String? = null
+    private var widgetTabState: String? = null
     private var startRouteState by mutableStateOf<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -59,7 +60,12 @@ class MainActivity : ComponentActivity() {
             YtDlpTheme(darkTheme = dark, amoled = amoled, accent = accent) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     startRouteState?.let { start ->
-                        AppNavigation(sharedUrl = sharedUrlState, startDestination = start)
+                        AppNavigation(
+                            sharedUrl = sharedUrlState,
+                            startDestination = start,
+                            widgetTab = widgetTabState,
+                            onWidgetTabConsumed = { widgetTabState = null }
+                        )
                     }
                 }
             }
@@ -88,9 +94,18 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleIncomingIntent(intent: Intent?) {
-        if (intent?.action != Intent.ACTION_SEND || intent.type != "text/plain") return
+        if (intent == null) return
+        // Widget deep-links: zyvro_tab = home/queue/library/browser/settings
+        intent.getStringExtra(EXTRA_WIDGET_TAB)?.takeIf { it.isNotBlank() }?.let {
+            widgetTabState = it
+        }
+        if (intent.action != Intent.ACTION_SEND || intent.type != "text/plain") return
         val text = intent.getStringExtra(Intent.EXTRA_TEXT)?.trim()
         if (!text.isNullOrBlank()) sharedUrlState = extractUrl(text) ?: text
+    }
+
+    companion object {
+        const val EXTRA_WIDGET_TAB = "zyvro_tab"
     }
 
     private fun extractUrl(text: String): String? =

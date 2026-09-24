@@ -118,4 +118,7 @@ dependencies {
     implementation(libs.youtubedl.aria2c)
     implementation(libs.androidx.media3.exoplayer)
     implementation(libs.androidx.media3.ui)
+
+    implementation(libs.glance.appwidget)
+    implementation(libs.glance.material3)
 }

@@ -43,7 +43,11 @@ class YtDlpApp : Application(), ImageLoaderFactory {
         appScope.launch {
             val result = YtDlpEngine.ensureInitialized(this@YtDlpApp)
             result.fold(
-                onSuccess = { _isEngineReady.value = true; _initError.value = null },
+                onSuccess = {
+                    _isEngineReady.value = true; _initError.value = null
+                    // Keep extractors fresh so Instagram/Facebook keep working.
+                    launch { runCatching { com.zyvro.app.engine.YtDlpUpdater.maybeAutoUpdate(this@YtDlpApp) } }
+                },
                 onFailure = { error ->
                     _isEngineReady.value = false
                     _initError.value = error.message?.takeIf { it.isNotBlank() } ?: error.javaClass.simpleName

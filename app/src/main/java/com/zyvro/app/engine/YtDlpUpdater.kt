@@ -20,6 +20,8 @@ object YtDlpUpdater {
     private const val CONNECT_TIMEOUT_MS = 15_000
     private const val READ_TIMEOUT_MS = 60_000
     private const val USER_AGENT = "Zyvro/3.0 (Android; yt-dlp updater)"
+    private const val LAST_CHECK_KEY = "dlpLastCheckMs"
+    private const val AUTO_CHECK_INTERVAL_MS = 7L * 24L * 60L * 60L * 1000L // 7 days
 
     private fun prefs(context: Context) =
         context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -32,8 +34,7 @@ object YtDlpUpdater {
         YoutubeDL.getInstance().init(context.applicationContext)
     }
 
-    suspend fun getVersion(context: Context): String = withContext(Dispatchers.IO) {
-        runCatching {
+    suspend fun getVersion(context: Context): String = withContext(Dispatchers.IO) {        runCatching {
             ensureYtDlpCore(context)
             val storedName = prefs(context).getString(VERSION_NAME_KEY, null).orEmpty()
             val storedTag = prefs(context).getString(VERSION_KEY, null).orEmpty()
@@ -42,6 +43,21 @@ object YtDlpUpdater {
             Log.e(TAG, "Failed to initialize/read yt-dlp version", error)
             "Engine unavailable"
         }
+    }
+
+    /**
+     * Best-effort background refresh: if the bundled extractor is older than
+     * 7 days, try updating once. Never throws — callers ignore the result.
+     * Stale extractors are the #1 cause of Instagram/Facebook failures.
+     */
+    suspend fun maybeAutoUpdate(context: Context) = withContext(Dispatchers.IO) {
+        runCatching {
+            val prefs = prefs(context)
+            val last = prefs.getLong(LAST_CHECK_KEY, 0L)
+            if (System.currentTimeMillis() - last < AUTO_CHECK_INTERVAL_MS) return@runCatching
+            prefs.edit().putLong(LAST_CHECK_KEY, System.currentTimeMillis()).apply()
+            updateEngine(context)
+        }.onFailure { Log.w(TAG, "Background yt-dlp check skipped", it) }
     }
 
     suspend fun updateEngine(

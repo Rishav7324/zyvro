@@ -1,7 +1,6 @@
 package com.zyvro.app.ui.navigation
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -32,6 +31,7 @@ import com.zyvro.app.ui.components.LiquidGlassNavigationBar
 import com.zyvro.app.ui.player.AudioPlayerSheet
 import com.zyvro.app.ui.player.MiniPlayerBar
 import com.zyvro.app.ui.player.VideoPlayerView
+import com.zyvro.app.ui.motion.NovaMotion
 import com.zyvro.app.ui.screens.HomeScreen
 import com.zyvro.app.ui.screens.LegalScreen
 import com.zyvro.app.ui.screens.LibraryScreen
@@ -56,7 +56,9 @@ val navItems = listOf(Screen.Home, Screen.Browser, Screen.Queue, Screen.Library,
 fun AppNavigation(
     navController: NavHostController = rememberNavController(),
     sharedUrl: String? = null,
-    startDestination: String = Screen.Permissions.route
+    startDestination: String = Screen.Permissions.route,
+    widgetTab: String? = null,
+    onWidgetTabConsumed: () -> Unit = {}
 ) {
     val homeViewModel: HomeViewModel = viewModel()
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -87,6 +89,24 @@ fun AppNavigation(
         }
     }
 
+    androidx.compose.runtime.LaunchedEffect(widgetTab) {
+        val tab = widgetTab?.lowercase().orEmpty()
+        val route = when (tab) {
+            "queue" -> Screen.Queue.route
+            "library" -> Screen.Library.route
+            "browser" -> Screen.Browser.route
+            "settings" -> Screen.Settings.route
+            "home" -> Screen.Home.route
+            else -> null
+        }
+        if (route != null && currentDestination != route) {
+            navController.navigate(route) { launchSingleTop = true }
+            onWidgetTabConsumed()
+        } else if (route != null) {
+            onWidgetTabConsumed()
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -96,10 +116,10 @@ fun AppNavigation(
             navController = navController,
             startDestination = startDestination,
             modifier = Modifier.fillMaxSize(),
-            enterTransition = { fadeIn(tween(220, easing = FastOutSlowInEasing)) },
-            exitTransition = { fadeOut(tween(180)) },
-            popEnterTransition = { fadeIn(tween(200)) },
-            popExitTransition = { fadeOut(tween(160)) }
+            enterTransition = { NovaMotion.NavEnter },
+            exitTransition = { NovaMotion.NavExit },
+            popEnterTransition = { NovaMotion.NavPopEnter },
+            popExitTransition = { NovaMotion.NavPopExit }
         ) {
             composable(Screen.Permissions.route) {
                 PermissionScreen(

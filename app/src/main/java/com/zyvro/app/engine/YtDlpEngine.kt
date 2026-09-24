@@ -32,6 +32,15 @@ object YtDlpEngine {
     private const val TAG = "YtDlpEngine"
     private const val DEFAULT_USER_AGENT =
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+    /**
+     * Anonymous-first Meta fix: Instagram/Facebook serve public Reels far more
+     * reliably to a mobile Safari UA + proper referer than to a desktop Chrome
+     * UA (which often 302-redirects to /login). YouTube keeps the desktop UA.
+     */
+    private const val META_MOBILE_USER_AGENT =
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1"
+    private const val INSTAGRAM_REFERER = "https://www.instagram.com/"
+    private const val FACEBOOK_REFERER = "https://m.facebook.com/"
 
     private val initMutex = Mutex()
     @Volatile var isInitialized = false
@@ -78,8 +87,12 @@ object YtDlpEngine {
             url = "https://$url"
         }
 
-        // Clean tracking & analytics parameters from Instagram/Facebook/Threads/TikTok/Pinterest
-        if (url.contains("instagram.com") || url.contains("threads.net")) {
+        // Expand bare short-domains users often paste without scheme/path noise.
+        // instagr.am/XXXX and fb.watch/XXXX are resolved by yt-dlp itself once
+        // tracking params are stripped, so keep the short host intact.
+        if (url.contains("instagr.am") || url.contains("instagram.com") || url.contains("threads.net")) {
+            // Strip ALL tracking queries (igsh, igshid, img_index, utm_*) but keep
+            // the path (/reel/ID/, /p/ID/, /share/reel/ID) untouched.
             val queryIdx = url.indexOf('?')
             if (queryIdx != -1) {
                 url = url.substring(0, queryIdx)
@@ -88,15 +101,21 @@ object YtDlpEngine {
                 url = "$url/"
             }
         } else if (url.contains("facebook.com") || url.contains("fb.watch")) {
-            // Keep ?v= on facebook watch URLs, otherwise strip tracking
-            if (!url.contains("/watch") && !url.contains("?v=")) {
+            // fb.watch/ID shortlinks must keep their full path; only strip
+            // known tracking params. /watch?v= links keep ?v=.
+            if (url.contains("fb.watch/")) {
+                val queryIdx = url.indexOf('?')
+                if (queryIdx != -1) url = url.substring(0, queryIdx)
+            } else if (!url.contains("/watch") && !url.contains("?v=")) {
                 val queryIdx = url.indexOf('?')
                 if (queryIdx != -1) url = url.substring(0, queryIdx)
             } else {
-                url = url.replace(Regex("""[&?]fbclid=[^&]+"""), "")
-                    .replace(Regex("""[&?]mibextid=[^&]+"""), "")
-                    .replace(Regex("""[&?]sfnsn=[^&]+"""), "")
+                url = stripTrackingParams(url)
             }
+            // Normalize mobile/desktop hosts: m.facebook.com is the most
+            // permissive for anonymous extraction.
+            url = url.replace("://www.facebook.com", "://m.facebook.com")
+                .replace("://web.facebook.com", "://m.facebook.com")
         } else if (url.contains("pinterest.com") || url.contains("pin.it")) {
             val queryIdx = url.indexOf('?')
             if (queryIdx != -1) url = url.substring(0, queryIdx)
@@ -104,42 +123,129 @@ object YtDlpEngine {
         return url
     }
 
+    private fun stripTrackingParams(url: String): String {
+        var out = url
+        listOf("fbclid", "mibextid", "sfnsn", "igsh", "igshid", "utm_source", "utm_medium", "utm_campaign", "xmt", "s", "a").forEach { key ->
+            out = out.replace(Regex("""[&?]$key=[^&]*"""), "")
+        }
+        // Clean up leftover "?&", trailing "?" or "&".
+        out = out.replace("?&", "?").trimEnd('?', '&')
+        return out
+    }
+
+    private fun refererFor(url: String): String? = when {
+        url.contains("instagram.com") || url.contains("instagr.am") || url.contains("threads.net") -> INSTAGRAM_REFERER
+        url.contains("facebook.com") || url.contains("fb.watch") -> FACEBOOK_REFERER
+        else -> null
+    }
+
     suspend fun fetchVideoInfo(context: Context, url: String, cookiesFile: File? = null): Result<VideoInfo> = withContext(Dispatchers.IO) {
         runCatching {
             ensureInitialized(context).getOrThrow()
             val normalized = normalizeUrl(url)
-            val isInstagram = normalized.contains("instagram.com")
+            val isInstagram = normalized.contains("instagram.com") || normalized.contains("instagr.am")
             val isMeta = isInstagram ||
                     normalized.contains("facebook.com") ||
                     normalized.contains("fb.watch") ||
                     normalized.contains("threads.net")
+            val hasCookies = cookiesFile?.exists() == true
 
-            val request = YoutubeDLRequest(normalized).apply {
-                addOption("--no-playlist")
-                addOption("--user-agent", DEFAULT_USER_AGENT)
-                if (cookiesFile?.exists() == true) {
-                    addOption("--cookies", cookiesFile.absolutePath)
-                }
+            // Anonymous-first: (1) standard request, (2) mobile-UA + referer +
+            // resilient retries for Meta, (3) cookies only as last resort so
+            // public Reels work without forcing a login.
+            val attempts = buildList {
+                add(false to DEFAULT_USER_AGENT)
+                if (isMeta) add(false to META_MOBILE_USER_AGENT)
+                if (hasCookies) add(true to META_MOBILE_USER_AGENT)
             }
 
-            val info = YoutubeDL.getInstance().getInfo(request)
-            val videoId = info.id.orEmpty().ifBlank { System.currentTimeMillis().toString() }
-            VideoInfo(
-                url = normalized,
-                id = videoId,
-                title = info.title.orEmpty().ifBlank { if (isInstagram) "Instagram Media" else "Untitled media" },
-                uploader = info.uploader.orEmpty().ifBlank { info.extractor.orEmpty().ifBlank { if (isInstagram) "Instagram" else "Unknown creator" } },
-                channelUrl = "",
-                thumbnailUrl = info.thumbnail.orEmpty(),
-                durationSeconds = (info.duration as? Number)?.toLong() ?: 0L,
-                viewCount = (info.viewCount as? Number)?.toLong() ?: 0L,
-                description = info.description.orEmpty(),
-                extractor = info.extractor.orEmpty().ifBlank { if (isInstagram) "Instagram" else "" },
-                formats = mapFormats(info)
-            )
+            var lastError: Throwable? = null
+            for ((index, attempt) in attempts.withIndex()) {
+                val (useCookies, userAgent) = attempt
+                try {
+                    return@runCatching fetchVideoInfoOnce(normalized, isInstagram, userAgent, if (useCookies) cookiesFile else null, isMeta)
+                } catch (error: Throwable) {
+                    lastError = error
+                    val msg = error.message.orEmpty()
+                    Log.w(TAG, "Metadata attempt ${index + 1}/${attempts.size} failed for $normalized (cookies=$useCookies): $msg")
+                    // Login-wall without cookies available: no point retrying further.
+                    if (!hasCookies && isLoginWall(msg)) break
+                    // Non-Meta sites: single attempt is enough.
+                    if (!isMeta) break
+                }
+            }
+            throw mapToFriendlyError(lastError, hasCookies)
         }.fold({ Result.success(it) }) { error ->
             Log.e(TAG, "Metadata extraction failed for $url", error)
             Result.failure(error)
+        }
+    }
+
+    private fun fetchVideoInfoOnce(
+        normalized: String,
+        isInstagram: Boolean,
+        userAgent: String,
+        cookiesFile: File?,
+        isMeta: Boolean
+    ): VideoInfo {
+        val request = YoutubeDLRequest(normalized).apply {
+            addOption("--no-playlist")
+            addOption("--no-check-certificate")
+            addOption("--socket-timeout", "30")
+            addOption("--retries", "3")
+            addOption("--extractor-retries", "3")
+            addOption("--user-agent", userAgent)
+            refererFor(normalized)?.let { addOption("--referer", it) }
+            if (isMeta) {
+                // Bypass geo/age variations that break anonymous Meta extraction.
+                addOption("--geo-bypass")
+            }
+            if (cookiesFile?.exists() == true) {
+                addOption("--cookies", cookiesFile.absolutePath)
+            }
+        }
+
+        val info = YoutubeDL.getInstance().getInfo(request)
+        val videoId = info.id.orEmpty().ifBlank { System.currentTimeMillis().toString() }
+        return VideoInfo(
+            url = normalized,
+            id = videoId,
+            title = info.title.orEmpty().ifBlank { if (isInstagram) "Instagram Media" else "Untitled media" },
+            uploader = info.uploader.orEmpty().ifBlank { info.extractor.orEmpty().ifBlank { if (isInstagram) "Instagram" else "Unknown creator" } },
+            channelUrl = "",
+            thumbnailUrl = info.thumbnail.orEmpty(),
+            durationSeconds = (info.duration as? Number)?.toLong() ?: 0L,
+            viewCount = (info.viewCount as? Number)?.toLong() ?: 0L,
+            description = info.description.orEmpty(),
+            extractor = info.extractor.orEmpty().ifBlank { if (isInstagram) "Instagram" else "" },
+            formats = mapFormats(info)
+        )
+    }
+
+    private fun isLoginWall(msg: String): Boolean =
+        msg.contains("login", ignoreCase = true) ||
+                msg.contains("log in", ignoreCase = true) ||
+                msg.contains("cookies", ignoreCase = true) ||
+                msg.contains("private", ignoreCase = true) ||
+                msg.contains("rate-limit", ignoreCase = true) ||
+                msg.contains("redirect", ignoreCase = true)
+
+    private fun mapToFriendlyError(cause: Throwable?, hasCookies: Boolean): Throwable {
+        val raw = cause?.message.orEmpty()
+        val lower = raw.lowercase()
+        return when {
+            lower.contains("login") || lower.contains("log in") || lower.contains("cookies") -> {
+                if (hasCookies) Exception("LOGIN_REQUIRED: Platform still asks for login even with cookies. Link private/deleted ho sakta hai, ya cookies expire ho gaye. Fresh cookies.txt import karo.")
+                else Exception("LOGIN_REQUIRED: Ye post login maang raha hai (private/age-gated). Settings me cookies.txt import karo, phir retry karo. Detail: ${raw.take(220)}")
+            }
+            lower.contains("rate-limit") || lower.contains("too many requests") || lower.contains("429") ->
+                Exception("RATE_LIMITED: Platform ne request limit lagayi hai. 1-2 min ruk kar retry karo. Detail: ${raw.take(220)}")
+            lower.contains("unsupported url") || lower.contains("no video") || lower.contains("not available") ->
+                Exception("UNSUPPORTED: Ye link public video/photo nahi lag raha (deleted/private ya wrong URL). Detail: ${raw.take(220)}")
+            lower.contains("network") || lower.contains("timeout") || lower.contains("unknownhost") || lower.contains("unable to resolve") ->
+                Exception("NETWORK: Internet slow/unstable hai. Wi-Fi check karke retry karo. Detail: ${raw.take(220)}")
+            raw.isNotBlank() -> Exception("FETCH_FAILED: $raw".take(400))
+            else -> Exception("FETCH_FAILED: Could not read this media link. URL verify karke retry karo.")
         }
     }
 
@@ -199,7 +305,7 @@ object YtDlpEngine {
             ensureInitialized(context).getOrThrow()
             val validDir = outputDir.takeIf { it.exists() || it.mkdirs() } ?: context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: context.filesDir
             val normalized = normalizeUrl(url)
-            val isInstagram = normalized.contains("instagram.com")
+            val isInstagram = normalized.contains("instagram.com") || normalized.contains("instagr.am")
             val isMeta = isInstagram ||
                     normalized.contains("facebook.com") ||
                     normalized.contains("fb.watch") ||
@@ -213,7 +319,15 @@ object YtDlpEngine {
                 addOption("--restrict-filenames")
                 addOption("--newline")
                 addOption("--no-playlist")
-                addOption("--user-agent", DEFAULT_USER_AGENT)
+                addOption("--no-check-certificate")
+                addOption("--socket-timeout", "30")
+                addOption("--retries", "5")
+                addOption("--fragment-retries", "5")
+                // Meta gets the mobile UA + referer (same anti-302 fix as fetch);
+                // everything else keeps the desktop UA for max quality.
+                addOption("--user-agent", if (isMeta) META_MOBILE_USER_AGENT else DEFAULT_USER_AGENT)
+                refererFor(normalized)?.let { addOption("--referer", it) }
+                if (isMeta) addOption("--geo-bypass")
             }
 
             if (speedLimit.isNotBlank() && speedLimit != "0" && !speedLimit.equals("Unlimited", ignoreCase = true)) {
@@ -258,7 +372,7 @@ object YtDlpEngine {
                 if (ytAndroidClient) {
                     request.addOption("--extractor-args", "youtube:player_client=android")
                 }
-                if (embedThumbnail && !isInstagram) request.addOption("--embed-thumbnail")
+                if (embedThumbnail && !isInstagram && !normalized.contains("instagr.am")) request.addOption("--embed-thumbnail")
                 if (embedSubtitles) request.addOption("--embed-subs")
             }
 

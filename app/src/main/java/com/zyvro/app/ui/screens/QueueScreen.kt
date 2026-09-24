@@ -103,12 +103,12 @@ fun QueueScreen(
                     Spacer(modifier = Modifier.width(10.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Aria2c Turbo Engine Active",
+                            text = "Turbo Engine Active",
                             style = MaterialTheme.typography.titleSmall.copy(fontSize = 12.5.sp),
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "16 Parallel Chunk Streaming",
+                            text = "Multi-connection accelerated",
                             style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -120,7 +120,7 @@ fun QueueScreen(
                             .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
                         Text(
-                            text = "16x TURBO",
+                            text = "TURBO",
                             style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.5.sp),
                             fontWeight = FontWeight.Black,
                             color = if (isDark) NovaCyan else NovaPrimary

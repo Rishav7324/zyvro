@@ -50,53 +50,39 @@ fun Modifier.ambientLiquidBackground(
 }
 
 /**
- * Zyvro clean-glass Modifier.
- * Lightweight frosted surface: subtle gradient fill, thin hairline border and a
- * soft shadow. Defaults are intentionally restrained for a minimal Material3
- * look and lower GPU overdraw; callers can still raise elevation/borderAlpha.
+ * Zyvro clean-glass Modifier (2.0 minimal).
+ * Flat iOS-grouped surface: near-solid fill, hairline border, restrained shadow.
+ * Keeps the same API so all screens keep compiling.
  */
 @Composable
 fun Modifier.liquidGlass(
-    shape: Shape = RoundedCornerShape(24.dp),
-    borderAlpha: Float = 0.5f,
-    elevation: Dp = 4.dp,
+    shape: Shape = RoundedCornerShape(22.dp),
+    borderAlpha: Float = 0.35f,
+    elevation: Dp = 2.dp,
     tintColor: Color? = null,
     isDark: Boolean = LocalAppDark.current
 ): Modifier {
-    val backgroundBrush = if (isDark) {
-        val baseTop = tintColor?.copy(alpha = 0.28f) ?: Color(0xFF142436).copy(alpha = 0.78f)
-        val baseBottom = Color(0xFF0A1522).copy(alpha = 0.88f)
-        Brush.verticalGradient(listOf(baseTop, baseBottom))
+    val backgroundColor = if (isDark) {
+        tintColor?.copy(alpha = 0.22f) ?: Color(0xFF1C1C1E).copy(alpha = 0.96f)
     } else {
-        val baseTop = tintColor?.copy(alpha = 0.20f) ?: Color.White.copy(alpha = 0.94f)
-        val baseBottom = Color(0xFFEEF7F7).copy(alpha = 0.88f)
-        Brush.verticalGradient(listOf(baseTop, baseBottom))
+        tintColor?.copy(alpha = 0.10f) ?: Color.White.copy(alpha = 0.98f)
     }
 
-    // Beveled specular rim reflection (from Penpot Border Glass tokens)
-    val borderBrush = Brush.linearGradient(
-        listOf(
-            if (isDark) Color.White.copy(alpha = 0.55f * borderAlpha) else Color.White.copy(alpha = 0.98f),
-            if (isDark) NovaCyan.copy(alpha = 0.40f * borderAlpha) else Color(0xFFCCE7E8).copy(alpha = 0.70f),
-            if (isDark) Color.White.copy(alpha = 0.15f * borderAlpha) else Color.White.copy(alpha = 0.40f)
-        )
-    )
-
-    val ambientGlow = if (isDark) {
-        tintColor?.copy(alpha = 0.25f) ?: Color(0xFF5CE1E6).copy(alpha = 0.14f)
+    val borderColor = if (isDark) {
+        Color.White.copy(alpha = 0.10f * (1f + borderAlpha))
     } else {
-        Color(0xFF088395).copy(alpha = 0.14f)
+        Color(0xFFC6C6C8).copy(alpha = 0.55f)
     }
 
     return this
         .shadow(
             elevation = elevation,
             shape = shape,
-            ambientColor = if (isDark) Color.Black.copy(alpha = 0.35f) else ambientGlow,
-            spotColor = ambientGlow
+            ambientColor = Color.Black.copy(alpha = if (isDark) 0.4f else 0.08f),
+            spotColor = Color.Black.copy(alpha = if (isDark) 0.4f else 0.08f)
         )
-        .background(backgroundBrush, shape)
-        .border(1.dp, borderBrush, shape)
+        .background(backgroundColor, shape)
+        .border(0.5.dp, borderColor, shape)
 }
 
 /**
@@ -105,10 +91,10 @@ fun Modifier.liquidGlass(
 @Composable
 fun LiquidGlassCard(
     modifier: Modifier = Modifier,
-    shape: Shape = RoundedCornerShape(24.dp),
+    shape: Shape = RoundedCornerShape(22.dp),
     tintColor: Color? = null,
-    borderAlpha: Float = 0.5f,
-    elevation: Dp = 4.dp,
+    borderAlpha: Float = 0.35f,
+    elevation: Dp = 2.dp,
     onClick: (() -> Unit)? = null,
     content: @Composable BoxScope.() -> Unit
 ) {

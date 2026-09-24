@@ -78,8 +78,8 @@ fun SettingsScreen(
             }.getOrNull()
             if (text.isNullOrBlank()) {
                 Toast.makeText(context, "Could not read file", Toast.LENGTH_SHORT).show()
-            } else if (!text.contains("Netscape HTTP Cookie File") && !text.contains("youtube.com") && !text.contains("instagram.com")) {
-                Toast.makeText(context, "Not a valid cookies.txt (needs youtube.com or instagram.com)", Toast.LENGTH_LONG).show()
+            } else if (!text.contains("Netscape HTTP Cookie File") && !text.contains("youtube.com") && !text.contains("instagram.com") && !text.contains("facebook.com")) {
+                Toast.makeText(context, "Not a valid cookies.txt (needs youtube.com, instagram.com or facebook.com)", Toast.LENGTH_LONG).show()
             } else {
                 viewModel.setCookiesContent(text)
                 Toast.makeText(context, "Login cookies imported successfully", Toast.LENGTH_SHORT).show()
@@ -174,10 +174,10 @@ fun SettingsScreen(
             }
         }
 
-        // PLATFORM LOGIN (YouTube & Instagram)
+        // PLATFORM LOGIN (YouTube, Instagram & Facebook)
         IOSSection(
-            header = "PLATFORM LOGIN (YouTube & Instagram)",
-            footer = "Export cookies.txt from a desktop browser (devtools extension). Unlocks 1080p/4K on YouTube and private/gated Instagram reels. Never uploaded — stays on this device."
+            header = "PLATFORM LOGIN (YouTube, Instagram & Facebook)",
+            footer = "Export cookies.txt from a desktop browser (devtools extension). Unlocks HD on YouTube and gated Instagram/Facebook reels. Never uploaded — stays on this device."
         ) {
             IOSValueRow(
                 icon = Icons.Rounded.Cookie,
