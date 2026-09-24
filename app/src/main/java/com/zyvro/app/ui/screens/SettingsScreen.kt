@@ -471,7 +471,7 @@ fun SettingsScreen(
 
         Spacer(Modifier.height(16.dp))
         Text(
-            text = "Zyvro · v3.0.0",
+            text = "Zyvro · v3.1.1",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
             modifier = Modifier.align(Alignment.CenterHorizontally)
