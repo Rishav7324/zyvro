@@ -6,12 +6,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceTheme
-import androidx.glance.action.actionStartActivity
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.provideContent
 import androidx.glance.Button
-import androidx.glance.LocalContext
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Column
 import androidx.glance.layout.Row
@@ -36,7 +34,6 @@ class PlayerWidget : GlanceAppWidget() {
 
     @Composable
     private fun PlayerContent() {
-        val context = LocalContext.current
         Column(
             modifier = androidx.glance.GlanceModifier
                 .fillMaxWidth()
@@ -54,12 +51,12 @@ class PlayerWidget : GlanceAppWidget() {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Button(
                     text = "Player",
-                    onClick = actionStartActivity(WidgetIntents.openTab(context, "library"))
+                    onClick = WidgetIntents.openTabAction("library")
                 )
                 Spacer(modifier = androidx.glance.GlanceModifier.width(8.dp))
                 Button(
                     text = "Queue",
-                    onClick = actionStartActivity(WidgetIntents.openTab(context, "queue"))
+                    onClick = WidgetIntents.openTabAction("queue")
                 )
             }
         }

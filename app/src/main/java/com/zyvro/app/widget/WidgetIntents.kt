@@ -1,19 +1,24 @@
 package com.zyvro.app.widget
 
-import android.content.Context
-import android.content.Intent
+import androidx.glance.action.Action
+import androidx.glance.action.ActionParameters
+import androidx.glance.action.actionParametersOf
+import androidx.glance.action.actionStartActivity
 import com.zyvro.app.ui.MainActivity
 
+/**
+ * Shared widget navigation. Tab is delivered to MainActivity as an intent
+ * extra named "zyvro_tab" (Glance maps action parameters to extras), which
+ * MainActivity already reads via EXTRA_WIDGET_TAB.
+ */
 object WidgetIntents {
     const val EXTRA_TAB = "zyvro_tab"
+    private val TabKey = ActionParameters.Key<String>(EXTRA_TAB)
 
-    fun openTab(context: Context, tab: String): Intent =
-        Intent(context, MainActivity::class.java).apply {
-            action = Intent.ACTION_MAIN
-            addCategory(Intent.CATEGORY_LAUNCHER)
-            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            putExtra(EXTRA_TAB, tab)
-        }
+    fun openTabAction(tab: String): Action =
+        actionStartActivity<MainActivity>(
+            parameters = actionParametersOf(TabKey to tab)
+        )
 
-    fun openApp(context: Context): Intent = openTab(context, "home")
+    fun openAppAction(): Action = openTabAction("home")
 }

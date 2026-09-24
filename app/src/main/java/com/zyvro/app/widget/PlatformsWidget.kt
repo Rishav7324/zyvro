@@ -6,12 +6,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceTheme
-import androidx.glance.action.actionStartActivity
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.provideContent
 import androidx.glance.Button
-import androidx.glance.LocalContext
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Column
 import androidx.glance.layout.Row
@@ -36,7 +34,6 @@ class PlatformsWidget : GlanceAppWidget() {
 
     @Composable
     private fun PlatformsContent() {
-        val context = LocalContext.current
         Column(
             modifier = androidx.glance.GlanceModifier
                 .fillMaxWidth()
@@ -54,12 +51,12 @@ class PlatformsWidget : GlanceAppWidget() {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Button(
                     text = "Browser",
-                    onClick = actionStartActivity(WidgetIntents.openTab(context, "browser"))
+                    onClick = WidgetIntents.openTabAction("browser")
                 )
                 Spacer(modifier = androidx.glance.GlanceModifier.width(8.dp))
                 Button(
                     text = "Home",
-                    onClick = actionStartActivity(WidgetIntents.openTab(context, "home"))
+                    onClick = WidgetIntents.openTabAction("home")
                 )
             }
         }

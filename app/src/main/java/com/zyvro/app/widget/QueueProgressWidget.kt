@@ -6,12 +6,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceTheme
-import androidx.glance.action.actionStartActivity
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.provideContent
 import androidx.glance.Button
-import androidx.glance.LocalContext
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Column
 import androidx.glance.layout.Spacer
@@ -38,7 +36,6 @@ class QueueProgressWidget : GlanceAppWidget() {
 
     @Composable
     private fun QueueContent() {
-        val context = LocalContext.current
         Column(
             modifier = androidx.glance.GlanceModifier
                 .fillMaxWidth()
@@ -55,7 +52,7 @@ class QueueProgressWidget : GlanceAppWidget() {
             Spacer(modifier = androidx.glance.GlanceModifier.height(8.dp))
             Button(
                 text = "Open Queue",
-                onClick = actionStartActivity(WidgetIntents.openTab(context, "queue"))
+                onClick = WidgetIntents.openTabAction("queue")
             )
         }
     }
