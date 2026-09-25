@@ -33,6 +33,7 @@ import com.zyvro.app.ui.components.ambientLiquidBackground
 import com.zyvro.app.ui.theme.*
 import com.zyvro.app.viewmodel.SettingsViewModel
 import com.zyvro.app.viewmodel.UpdateState
+import com.zyvro.app.viewmodel.AppUpdateUiState
 import kotlinx.coroutines.launch
 
 /**
@@ -49,6 +50,7 @@ fun SettingsScreen(
     val uriHandler = LocalUriHandler.current
     val engineVersion by viewModel.engineVersion.collectAsState()
     val updateState by viewModel.updateState.collectAsState()
+    val appUpdateState by viewModel.appUpdateState.collectAsState()
     val customArguments by viewModel.customArguments.collectAsState()
     val embedSubtitles by viewModel.embedSubtitles.collectAsState()
     val useAria2 by viewModel.useAria2.collectAsState()
@@ -112,6 +114,48 @@ fun SettingsScreen(
         }
     }
 
+    LaunchedEffect(appUpdateState) {
+        when (val state = appUpdateState) {
+            is AppUpdateUiState.UpToDate -> Toast.makeText(context, "Zyvro is up to date (v${state.version})", Toast.LENGTH_SHORT).show()
+            is AppUpdateUiState.Error -> Toast.makeText(context, "App update check: ${state.message}", Toast.LENGTH_LONG).show()
+            else -> Unit
+        }
+    }
+
+    val currentAppUpdate = appUpdateState
+    if (currentAppUpdate is AppUpdateUiState.Available) {
+        val info = currentAppUpdate.info
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissAppUpdate() },
+            title = { Text("Zyvro Update Available! 🎉", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("A new release of Zyvro is available.")
+                    Text("Current: v${info.currentVersion}", style = MaterialTheme.typography.bodySmall)
+                    Text("Latest: v${info.latestVersion}", fontWeight = FontWeight.SemiBold, color = NovaPrimary)
+                    if (info.releaseNotes.isNotBlank()) {
+                        Text(info.releaseNotes.take(300), style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        com.zyvro.app.updater.AppUpdater.openBrowserDownload(context, info.downloadUrl)
+                        viewModel.dismissAppUpdate()
+                    }
+                ) {
+                    Text("Download & Install", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.dismissAppUpdate() }) {
+                    Text("Later")
+                }
+            }
+        )
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -137,8 +181,41 @@ fun SettingsScreen(
         )
         Spacer(Modifier.height(16.dp))
 
+        // ZYVRO APP SECTION
+        IOSSection(header = "ZYVRO APP", footer = "Download new app builds and track releases directly from GitHub.") {
+            IOSValueRow(
+                icon = Icons.Rounded.RocketLaunch,
+                title = "App version",
+                value = "v${com.zyvro.app.BuildConfig.VERSION_NAME}"
+            )
+            IOSDivider()
+            Button(
+                onClick = { viewModel.checkForAppUpdate() },
+                enabled = appUpdateState !is AppUpdateUiState.Checking,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 10.dp)
+                    .height(48.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = NovaPrimary,
+                    contentColor = Color.Black
+                )
+            ) {
+                if (appUpdateState is AppUpdateUiState.Checking) {
+                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = Color.Black)
+                    Spacer(Modifier.width(10.dp))
+                    Text("Checking GitHub releases…", fontWeight = FontWeight.SemiBold)
+                } else {
+                    Icon(Icons.Rounded.SystemUpdate, null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Check for app update", fontWeight = FontWeight.SemiBold)
+                }
+            }
+        }
+
         // ENGINE
-        IOSSection(header = "YT-DLP ENGINE", footer = "The downloader core updates itself from GitHub releases.") {
+        IOSSection(header = "YT-DLP ENGINE", footer = "The downloader core updates itself directly from GitHub releases.") {
             IOSValueRow(
                 icon = Icons.Rounded.CloudDownload,
                 title = "Engine version",

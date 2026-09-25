@@ -112,20 +112,18 @@ object YtDlpEngine {
             } else {
                 url = stripTrackingParams(url)
             }
-            // Normalize mobile/desktop hosts: m.facebook.com is the most
-            // permissive for anonymous extraction.
-            url = url.replace("://www.facebook.com", "://m.facebook.com")
-                .replace("://web.facebook.com", "://m.facebook.com")
         } else if (url.contains("pinterest.com") || url.contains("pin.it")) {
             val queryIdx = url.indexOf('?')
             if (queryIdx != -1) url = url.substring(0, queryIdx)
+        } else if (url.contains("tiktok.com") || url.contains("twitter.com") || url.contains("x.com")) {
+            url = stripTrackingParams(url)
         }
         return url
     }
 
     private fun stripTrackingParams(url: String): String {
         var out = url
-        listOf("fbclid", "mibextid", "sfnsn", "igsh", "igshid", "utm_source", "utm_medium", "utm_campaign", "xmt", "s", "a").forEach { key ->
+        listOf("fbclid", "mibextid", "sfnsn", "igsh", "igshid", "utm_source", "utm_medium", "utm_campaign", "xmt", "s", "a", "_t", "_r").forEach { key ->
             out = out.replace(Regex("""[&?]$key=[^&]*"""), "")
         }
         // Clean up leftover "?&", trailing "?" or "&".
@@ -144,34 +142,47 @@ object YtDlpEngine {
             ensureInitialized(context).getOrThrow()
             val normalized = normalizeUrl(url)
             val isInstagram = normalized.contains("instagram.com") || normalized.contains("instagr.am")
-            val isMeta = isInstagram ||
-                    normalized.contains("facebook.com") ||
-                    normalized.contains("fb.watch") ||
-                    normalized.contains("threads.net")
+            val isFacebook = normalized.contains("facebook.com") || normalized.contains("fb.watch")
+            val isMeta = isInstagram || isFacebook || normalized.contains("threads.net")
+            val isYouTube = normalized.contains("youtube.com") || normalized.contains("youtu.be")
             val hasCookies = cookiesFile?.exists() == true
 
-            // Anonymous-first: (1) standard request, (2) mobile-UA + referer +
-            // resilient retries for Meta, (3) cookies only as last resort so
-            // public Reels work without forcing a login.
+            // Platform-specific attempt strategy:
+            // 1. Meta (IG/FB): mobile Safari UA + referer
+            // 2. YouTube: android+web player client
+            // 3. TikTok / Twitter / Reddit: native extractor (NO UA override so internal signatures work)
             val attempts = buildList {
-                add(false to DEFAULT_USER_AGENT)
-                if (isMeta) add(false to META_MOBILE_USER_AGENT)
-                if (hasCookies) add(true to META_MOBILE_USER_AGENT)
+                if (isMeta) {
+                    add(false to META_MOBILE_USER_AGENT)
+                    if (hasCookies) add(true to META_MOBILE_USER_AGENT)
+                    add(hasCookies to null)
+                } else if (isYouTube) {
+                    add(false to null)
+                    if (hasCookies) add(true to null)
+                } else {
+                    add(false to null)
+                    if (hasCookies) add(true to null)
+                    add(hasCookies to META_MOBILE_USER_AGENT)
+                }
             }
 
             var lastError: Throwable? = null
             for ((index, attempt) in attempts.withIndex()) {
                 val (useCookies, userAgent) = attempt
                 try {
-                    return@runCatching fetchVideoInfoOnce(normalized, isInstagram, userAgent, if (useCookies) cookiesFile else null, isMeta)
+                    return@runCatching fetchVideoInfoOnce(
+                        normalized = normalized,
+                        isInstagram = isInstagram,
+                        isYouTube = isYouTube,
+                        userAgent = userAgent,
+                        cookiesFile = if (useCookies) cookiesFile else null,
+                        isMeta = isMeta
+                    )
                 } catch (error: Throwable) {
                     lastError = error
                     val msg = error.message.orEmpty()
                     Log.w(TAG, "Metadata attempt ${index + 1}/${attempts.size} failed for $normalized (cookies=$useCookies): $msg")
-                    // Login-wall without cookies available: no point retrying further.
-                    if (!hasCookies && isLoginWall(msg)) break
-                    // Non-Meta sites: single attempt is enough.
-                    if (!isMeta) break
+                    if (hasCookies && isLoginWall(msg)) break
                 }
             }
             throw mapToFriendlyError(lastError, hasCookies)
@@ -184,7 +195,8 @@ object YtDlpEngine {
     private fun fetchVideoInfoOnce(
         normalized: String,
         isInstagram: Boolean,
-        userAgent: String,
+        isYouTube: Boolean,
+        userAgent: String?,
         cookiesFile: File?,
         isMeta: Boolean
     ): VideoInfo {
@@ -194,11 +206,16 @@ object YtDlpEngine {
             addOption("--socket-timeout", "30")
             addOption("--retries", "3")
             addOption("--extractor-retries", "3")
-            addOption("--user-agent", userAgent)
+            if (!userAgent.isNullOrBlank()) {
+                addOption("--user-agent", userAgent)
+            }
             refererFor(normalized)?.let { addOption("--referer", it) }
             if (isMeta) {
                 // Bypass geo/age variations that break anonymous Meta extraction.
                 addOption("--geo-bypass")
+            }
+            if (isYouTube) {
+                addOption("--extractor-args", "youtube:player_client=android,web")
             }
             if (cookiesFile?.exists() == true) {
                 addOption("--cookies", cookiesFile.absolutePath)
@@ -315,17 +332,13 @@ object YtDlpEngine {
                 addOption("--socket-timeout", "30")
                 addOption("--retries", "5")
                 addOption("--fragment-retries", "8")
-                // Platform-aware User-Agent routing:
-                // Meta needs mobile Safari; TikTok needs mobile; YouTube gets desktop Chrome
-                val ua = when {
-                    isMeta   -> META_MOBILE_USER_AGENT
-                    isTikTok -> "com.zhiliaoapp.musically/2022600030 (Linux; U; Android 12; en_US; Pixel 5; Build/SP2A.220405.004; Cronet/58.0.2991.0)"
-                    else     -> DEFAULT_USER_AGENT
+                // Platform-aware headers: only set for Meta where mobile Safari is essential.
+                // TikTok, Twitter, Reddit, and generic extractors work best with their native headers.
+                if (isMeta) {
+                    addOption("--user-agent", META_MOBILE_USER_AGENT)
+                    refererFor(normalized)?.let { addOption("--referer", it) }
+                    addOption("--geo-bypass")
                 }
-                addOption("--user-agent", ua)
-                refererFor(normalized)?.let { addOption("--referer", it) }
-                // Geo-bypass for restricted regions
-                if (isMeta || isTikTok || isCombinedOnly) addOption("--geo-bypass")
             }
 
 
@@ -410,12 +423,8 @@ object YtDlpEngine {
                 }
 
                 // YouTube: enable Android client for age-gated or throttled content
-                if (ytAndroidClient && isYouTube) {
+                if (isYouTube) {
                     request.addOption("--extractor-args", "youtube:player_client=android,web")
-                }
-                // TikTok: no watermark extractor
-                if (isTikTok) {
-                    request.addOption("--extractor-args", "tiktok:app_name=trill")
                 }
                 // Bilibili: Chinese CDN workaround
                 if (normalized.contains("bilibili.com")) {
@@ -439,18 +448,33 @@ object YtDlpEngine {
             var speed = ""
             var eta = ""
             var resolved: File? = null
+            val downloadStartTime = System.currentTimeMillis() - 5000L
+            val pathRegex = Regex("""(?:\[download\]\s+Destination:\s*|\[Merger\]\s+Merging formats into\s+"?|\[ExtractAudio\]\s+Destination:\s*|\[Fixup\w+\]\s+Correcting container in\s+"?|\[download\]\s+(?:.*)\s+has already been downloaded\s*|Destination:\s*)(.*?)(?:"|\s*$)""")
 
             YoutubeDL.getInstance().execute(request, taskId) { progress, etaSeconds, line ->
                 Regex("""(?:at|speed)\s+([0-9.]+(?:KiB|MiB|GiB|KB|MB|GB)/s)""").find(line)?.groupValues?.getOrNull(1)?.let { speed = it }
                 if (etaSeconds > 0) eta = formatEta(etaSeconds)
-                val candidate = File(line.trim())
-                if (candidate.isAbsolute && candidate.parentFile?.absolutePath == validDir.absolutePath && candidate.isFile) {
-                    resolved = candidate
+
+                val pathMatch = pathRegex.find(line)?.groupValues?.getOrNull(1)?.trim('"', '\'', ' ')
+                if (!pathMatch.isNullOrBlank()) {
+                    val candidate = File(pathMatch)
+                    val target = if (candidate.isAbsolute) candidate else File(validDir, candidate.name)
+                    if (target.exists() && target.isFile) {
+                        resolved = target
+                    }
+                }
+                val directFile = File(line.trim().removeSurrounding("\""))
+                if (directFile.isAbsolute && directFile.parentFile?.absolutePath == validDir.absolutePath && directFile.isFile) {
+                    resolved = directFile
                 }
                 onProgress(progress.coerceIn(0f, 100f), speed, eta, line)
             }
 
-            resolved?.takeIf(File::exists)
+            resolved?.takeIf { it.exists() && it.length() > 0 }
+                ?: validDir.listFiles()?.filter {
+                    it.isFile && !it.name.endsWith(".part", true) && !it.name.endsWith(".ytdl", true) && !it.name.endsWith(".temp", true) &&
+                    it.lastModified() >= downloadStartTime
+                }?.maxByOrNull(File::lastModified)
                 ?: validDir.listFiles()?.filter {
                     it.isFile && !it.name.endsWith(".part", true) && !it.name.endsWith(".ytdl", true) && !it.name.endsWith(".temp", true)
                 }?.maxByOrNull(File::lastModified)

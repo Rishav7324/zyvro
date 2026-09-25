@@ -19,6 +19,14 @@ sealed interface UpdateState {
     data class Error(val message: String) : UpdateState
 }
 
+sealed interface AppUpdateUiState {
+    object Idle : AppUpdateUiState
+    object Checking : AppUpdateUiState
+    data class Available(val info: com.zyvro.app.updater.AppUpdateInfo) : AppUpdateUiState
+    data class UpToDate(val version: String) : AppUpdateUiState
+    data class Error(val message: String) : AppUpdateUiState
+}
+
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
 
     private val preferences = (application as YtDlpApp).preferences
@@ -44,6 +52,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val _updateState = MutableStateFlow<UpdateState>(UpdateState.Idle)
     val updateState: StateFlow<UpdateState> = _updateState.asStateFlow()
 
+    private val _appUpdateState = MutableStateFlow<AppUpdateUiState>(AppUpdateUiState.Idle)
+    val appUpdateState: StateFlow<AppUpdateUiState> = _appUpdateState.asStateFlow()
+
     init {
         loadEngineVersion()
     }
@@ -68,6 +79,29 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 }
             )
         }
+    }
+
+    fun checkForAppUpdate() {
+        _appUpdateState.value = AppUpdateUiState.Checking
+        viewModelScope.launch {
+            val res = com.zyvro.app.updater.AppUpdater.checkForUpdate()
+            res.fold(
+                onSuccess = { info ->
+                    if (info.isUpdateAvailable) {
+                        _appUpdateState.value = AppUpdateUiState.Available(info)
+                    } else {
+                        _appUpdateState.value = AppUpdateUiState.UpToDate(info.currentVersion)
+                    }
+                },
+                onFailure = { err ->
+                    _appUpdateState.value = AppUpdateUiState.Error(err.message ?: "Update check failed")
+                }
+            )
+        }
+    }
+
+    fun dismissAppUpdate() {
+        _appUpdateState.value = AppUpdateUiState.Idle
     }
 
     fun setDownloadPath(path: String) = viewModelScope.launch { preferences.setDownloadPath(path) }

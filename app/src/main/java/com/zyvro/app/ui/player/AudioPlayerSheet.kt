@@ -1,17 +1,24 @@
 package com.zyvro.app.ui.player
 
 import android.os.Build
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.*
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.rounded.*
@@ -33,7 +40,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.layout.offset
 import androidx.media3.common.Player
 import coil.compose.AsyncImage
 import com.zyvro.app.YtDlpApp
@@ -48,10 +54,12 @@ import kotlinx.coroutines.launch
 import java.io.File
 
 // ═══════════════════════════════════════════════════════════════════════════
-// ZYVRO AUDIO PLAYER SHEET v4.0 — Deep Space Aura · Spotify-Level Design
+// RETRO MUSIC PLAYER — Now Playing Card Architecture
+// Identical styling to RetroMusicPlayer (Card Theme with Ambient Glow,
+// Tap-to-lyrics, Iconic 5-Button Retro Controls, and Slide-Up Queue Sheet)
 // ═══════════════════════════════════════════════════════════════════════════
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun AudioPlayerSheet(onDismiss: () -> Unit) {
     val context    = LocalContext.current
@@ -68,10 +76,14 @@ fun AudioPlayerSheet(onDismiss: () -> Unit) {
     val repeat    by manager.repeatMode.collectAsState()
     val shuffle   by manager.isShuffleEnabled.collectAsState()
 
-    var selectedTab        by remember { mutableIntStateOf(0) }
+    var showQueueSheet     by remember { mutableStateOf(false) }
+    var showLyricsOverlay  by remember { mutableStateOf(false) }
+    var showRemainingTime  by remember { mutableStateOf(false) }
+    var showMenu           by remember { mutableStateOf(false) }
     var showEqualizer      by remember { mutableStateOf(false) }
     var showTrimmer        by remember { mutableStateOf(false) }
     var showPlaylistDialog by remember { mutableStateOf(false) }
+    var showInfoDialog     by remember { mutableStateOf(false) }
     var sleepTimerMinutes  by remember { mutableIntStateOf(0) }
     var sleepTimerJob      by remember { mutableStateOf<Job?>(null) }
     var sleepTimerActive   by remember { mutableStateOf(false) }
@@ -86,20 +98,20 @@ fun AudioPlayerSheet(onDismiss: () -> Unit) {
     val playlists  by repository.playlists.collectAsState(initial = emptyList())
     val lyrics     = remember(item.targetPath) { findLyrics(item.targetPath) }
 
-    // Artwork scale breathing animation
+    // Breathing artwork scale animation
     val artScale by animateFloatAsState(
-        targetValue   = if (playing) 1.0f else 0.88f,
+        targetValue   = if (playing) 1.0f else 0.92f,
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = Spring.DampingRatioMediumBouncy),
         label         = "art-scale"
     )
 
-    // Aurora rotation for background
-    val infiniteTransition = rememberInfiniteTransition(label = "aurora")
+    // Ambient glow rotation for vinyl/retro glow
+    val infiniteTransition = rememberInfiniteTransition(label = "ambient-aurora")
     val auroraRotation by infiniteTransition.animateFloat(
         initialValue  = 0f,
         targetValue   = 360f,
-        animationSpec = infiniteRepeatable(tween(20000, easing = LinearEasing)),
-        label         = "aurora-rotation"
+        animationSpec = infiniteRepeatable(tween(24000, easing = LinearEasing)),
+        label         = "ambient-rotation"
     )
 
     fun startSleepTimer(minutes: Int) {
@@ -118,6 +130,14 @@ fun AudioPlayerSheet(onDismiss: () -> Unit) {
         }
     }
 
+    // Format badge calculation (e.g. "MP3 • 320 KBPS" or "AAC • 256 KBPS")
+    val formatBadge = remember(item.targetPath) {
+        val ext = item.targetPath.substringAfterLast(".", "").uppercase()
+        val file = File(item.targetPath)
+        val sizeMb = if (file.exists()) "%.1f MB".format(file.length() / 1048576f) else "STREAM"
+        if (ext.isNotBlank()) "$ext • $sizeMb" else "AUDIO • HQ"
+    }
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState       = sheetState,
@@ -125,376 +145,669 @@ fun AudioPlayerSheet(onDismiss: () -> Unit) {
         shape            = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
         dragHandle       = null
     ) {
-        LazyColumn(
-            modifier       = Modifier.fillMaxWidth().navigationBarsPadding(),
-            contentPadding = PaddingValues(bottom = 32.dp)
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(bottom = 20.dp)
         ) {
-
             // ── Drag Handle ─────────────────────────────────────────────
-            item {
-                Column(
-                    modifier            = Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 4.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .width(44.dp).height(4.dp)
-                            .clip(CircleShape)
-                            .background(
-                                Brush.horizontalGradient(listOf(NovaPrimary.copy(alpha = 0.6f), NovaViolet.copy(alpha = 0.4f)))
-                            )
-                    )
-                }
-            }
-
-            // ── Header bar (Now Playing + close) ────────────────────────
-            item {
-                Row(
-                    modifier              = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment     = Alignment.CenterVertically
-                ) {
-                    IconButton(onClick = onDismiss) {
-                        Icon(Icons.Rounded.KeyboardArrowDown, "Collapse", Modifier.size(28.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            "NOW PLAYING",
-                            style      = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Black,
-                            color      = NovaPrimary,
-                            letterSpacing = 2.sp
-                        )
-                        Text(
-                            "Audio Player",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Row {
-                        IconButton(onClick = { showEqualizer = true }) {
-                            Icon(Icons.Default.GraphicEq, "EQ", tint = NovaViolet, modifier = Modifier.size(22.dp))
-                        }
-                    }
-                }
-            }
-
-            // ── Album Art ───────────────────────────────────────────────
-            item {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 10.dp, bottom = 4.dp),
+                contentAlignment = Alignment.Center
+            ) {
                 Box(
-                    modifier            = Modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 8.dp),
-                    contentAlignment    = Alignment.Center
-                ) {
-                    // Aurora blur halo
-                    if (isDark) {
-                        Box(
-                            modifier = Modifier
-                                .size(280.dp)
-                                .graphicsLayer { rotationZ = auroraRotation }
-                                .background(
-                                    Brush.sweepGradient(
-                                        listOf(
-                                            NovaPrimary.copy(alpha = 0.3f),
-                                            NovaViolet.copy(alpha = 0.2f),
-                                            NovaRose.copy(alpha = 0.15f),
-                                            NovaPrimary.copy(alpha = 0.3f)
-                                        )
-                                    ),
-                                    CircleShape
-                                )
-                                .blur(40.dp)
-                        )
-                    }
+                    modifier = Modifier
+                        .width(42.dp)
+                        .height(4.dp)
+                        .clip(CircleShape)
+                        .background(if (isDark) SpaceBorder else Color(0xFFD6DFEC))
+                )
+            }
 
-                    // Artwork
+            // ── Top Header Bar (Retro Collapse + Badge + Menu) ──────────
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Collapse circular button
+                IconButton(
+                    onClick = onDismiss,
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(CircleShape)
+                        .background(if (isDark) SpaceCardHigh else Color(0xFFEFF4FB))
+                ) {
+                    Icon(
+                        Icons.Rounded.KeyboardArrowDown,
+                        contentDescription = "Collapse",
+                        modifier = Modifier.size(26.dp),
+                        tint = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+
+                // Center Title & Format Pill
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        "NOW PLAYING",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = NovaPrimary,
+                        letterSpacing = 2.sp
+                    )
+                    Spacer(Modifier.height(2.dp))
                     Box(
                         modifier = Modifier
-                            .size(260.dp)
-                            .scale(artScale)
-                            .shadow(
-                                elevation  = if (playing) 28.dp else 12.dp,
-                                shape      = RoundedCornerShape(28.dp),
-                                spotColor  = NovaPrimary.copy(alpha = if (playing) 0.4f else 0.15f)
-                            )
-                            .clip(RoundedCornerShape(28.dp))
-                            .background(Brush.linearGradient(listOf(SpaceGlass, SpaceCardHigh))),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            Icons.Default.MusicNote,
-                            null,
-                            tint     = NovaPrimary.copy(alpha = 0.5f),
-                            modifier = Modifier.size(80.dp)
-                        )
-                        val imageModel = remember(item.thumbnailUrl, item.targetPath) {
-                            when {
-                                item.thumbnailUrl.isNotBlank() -> item.thumbnailUrl
-                                item.targetPath.isNotBlank()   -> File(item.targetPath)
-                                else -> null
-                            }
-                        }
-                        if (imageModel != null) {
-                            val request = coil.request.ImageRequest.Builder(context)
-                                .data(imageModel)
-                                .crossfade(true)
-                                .build()
-                            AsyncImage(
-                                model            = request,
-                                contentDescription = item.title,
-                                contentScale     = ContentScale.Crop,
-                                modifier         = Modifier.fillMaxSize()
-                            )
-                        }
-                    }
-                }
-            }
-
-            // ── Track Info + Favourite ──────────────────────────────────
-            item {
-                Row(
-                    modifier              = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment     = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            item.title,
-                            style      = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            maxLines   = 2,
-                            overflow   = TextOverflow.Ellipsis,
-                            color      = MaterialTheme.colorScheme.onBackground
-                        )
-                        Spacer(Modifier.height(2.dp))
-                        Text(
-                            item.uploader.ifBlank { "Unknown Artist" },
-                            style  = MaterialTheme.typography.bodyMedium,
-                            color  = NovaPrimary,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                    Spacer(Modifier.width(8.dp))
-                    IconButton(
-                        onClick = {
-                            scope.launch {
-                                if (isDbItem) {
-                                    repository.toggleFavorite(item.id)
-                                    isFavDb = !isFavDb
-                                } else {
-                                    repository.preferences.toggleDeviceFavorite(item.targetPath)
-                                }
-                            }
-                        }
-                    ) {
-                        Icon(
-                            if (isFav) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                            "Favorite",
-                            tint     = if (isFav) NovaRose else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(26.dp)
-                        )
-                    }
-                }
-            }
-
-            // ── Progress Slider ─────────────────────────────────────────
-            item {
-                var dragging by remember { mutableStateOf(false) }
-                var dragValue by remember { mutableFloatStateOf(0f) }
-                val displayPos = if (dragging) dragValue else position.toFloat()
-                val dur        = duration.toFloat().coerceAtLeast(1f)
-
-                Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-                    Slider(
-                        value       = (displayPos / dur).coerceIn(0f, 1f),
-                        onValueChange = { frac ->
-                            dragging  = true
-                            dragValue = frac * dur
-                        },
-                        onValueChangeFinished = {
-                            manager.seekTo(dragValue.toLong())
-                            dragging = false
-                        },
-                        colors = SliderDefaults.colors(
-                            thumbColor            = NovaPrimary,
-                            activeTrackColor      = NovaPrimary,
-                            inactiveTrackColor    = if (isDark) SpaceBorder else Color(0xFFD0DCFF)
-                        ),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(formatDuration(displayPos.toLong()), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text(formatDuration(duration), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-            }
-
-            // ── Main Controls ───────────────────────────────────────────
-            item {
-                Row(
-                    modifier              = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment     = Alignment.CenterVertically
-                ) {
-                    // Shuffle
-                    ControlIconButton(
-                        icon   = Icons.Default.Shuffle,
-                        active = shuffle,
-                        size   = 44.dp,
-                        onClick = { manager.toggleShuffle() }
-                    )
-
-                    // Skip back 10s
-                    ControlIconButton(
-                        icon   = Icons.Default.Replay10,
-                        active = false,
-                        size   = 50.dp,
-                        onClick = { manager.seekTo((position - 10000L).coerceAtLeast(0L)) }
-                    )
-
-                    // Play/Pause (large neon)
-                    Box(
-                        modifier = Modifier
-                            .size(72.dp)
-                            .shadow(20.dp, CircleShape, spotColor = NovaPrimary.copy(alpha = 0.4f))
-                            .clip(CircleShape)
-                            .background(Brush.linearGradient(GradientCyan))
-                            .clickable { manager.togglePlayPause() },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            if (playing) Icons.Default.Pause else Icons.Default.PlayArrow,
-                            "Play/Pause",
-                            tint     = Color(0xFF001824),
-                            modifier = Modifier.size(36.dp)
-                        )
-                    }
-
-                    // Forward 10s
-                    ControlIconButton(
-                        icon   = Icons.Default.Forward10,
-                        active = false,
-                        size   = 50.dp,
-                        onClick = { manager.seekTo((position + 10000L).coerceAtMost(duration)) }
-                    )
-
-                    // Repeat
-                    ControlIconButton(
-                        icon   = if (repeat == Player.REPEAT_MODE_ONE) Icons.Default.RepeatOne else Icons.Default.Repeat,
-                        active = repeat != Player.REPEAT_MODE_OFF,
-                        size   = 44.dp,
-                        onClick = {
-                            manager.toggleRepeatMode()
-                        }
-                    )
-                }
-            }
-
-            // ── Skip Track Row ──────────────────────────────────────────
-            item {
-                Row(
-                    modifier              = Modifier.fillMaxWidth().padding(horizontal = 48.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment     = Alignment.CenterVertically
-                ) {
-                    IconButton(onClick = { manager.playPrevious() }) {
-                        Icon(Icons.Rounded.SkipPrevious, "Previous", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.onSurface)
-                    }
-                    // Speed chip
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
+                            .clip(RoundedCornerShape(8.dp))
                             .background(NovaPrimary.copy(alpha = 0.12f))
-                            .border(0.5.dp, NovaPrimary.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
-                            .clickable {
-                                val speeds = listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f)
-                                val idx    = speeds.indexOfFirst { kotlin.math.abs(it - speed) < 0.01f }.let { if (it < 0) 2 else it }
-                                val next   = speeds[(idx + 1) % speeds.size]
-                                manager.setSpeed(next)
-                            }
-                            .padding(horizontal = 14.dp, vertical = 7.dp)
+                            .padding(horizontal = 8.dp, vertical = 2.dp)
                     ) {
-                        Text("${speed}×", fontWeight = FontWeight.Bold, color = NovaPrimary, fontSize = 13.sp)
-                    }
-                    IconButton(onClick = { manager.playNext() }) {
-                        Icon(Icons.Rounded.SkipNext, "Next", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.onSurface)
+                        Text(
+                            formatBadge,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = NovaPrimary,
+                            letterSpacing = 0.5.sp
+                        )
                     }
                 }
-            }
 
-            // ── Action chips ────────────────────────────────────────────
-            item {
-                LazyRow(
-                    contentPadding        = PaddingValues(horizontal = 20.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    item {
-                        ActionChip(
-                            icon    = Icons.Default.Timer,
-                            label   = if (sleepTimerActive) "${sleepTimerMinutes}m" else "Sleep",
-                            active  = sleepTimerActive,
+                // Right Overflow Menu
+                Box {
+                    IconButton(
+                        onClick = { showMenu = true },
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(CircleShape)
+                            .background(if (isDark) SpaceCardHigh else Color(0xFFEFF4FB))
+                    ) {
+                        Icon(
+                            Icons.Rounded.MoreVert,
+                            contentDescription = "Options",
+                            modifier = Modifier.size(22.dp),
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+
+                    DropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false },
+                        modifier = Modifier
+                            .background(if (isDark) SpaceCardHigh else Color.White)
+                            .clip(RoundedCornerShape(16.dp))
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Equalizer") },
+                            leadingIcon = { Icon(Icons.Rounded.GraphicEq, null, tint = NovaViolet) },
+                            onClick = { showMenu = false; showEqualizer = true }
+                        )
+                        DropdownMenuItem(
+                            text = { Text(if (sleepTimerActive) "Sleep Timer: ${sleepTimerMinutes}m" else "Sleep Timer") },
+                            leadingIcon = { Icon(Icons.Rounded.Timer, null, tint = NovaPrimary) },
                             onClick = {
-                                val options = listOf(0, 5, 10, 15, 30, 60)
-                                val next    = options[(options.indexOf(sleepTimerMinutes) + 1) % options.size]
+                                showMenu = false
+                                val options = listOf(0, 15, 30, 45, 60)
+                                val next = options[(options.indexOf(sleepTimerMinutes) + 1) % options.size]
                                 startSleepTimer(next)
                             }
                         )
-                    }
-                    item {
-                        ActionChip(Icons.Rounded.ContentCut, "Trim", false) { showTrimmer = true }
-                    }
-                    if (isDbItem) {
-                        item {
-                            ActionChip(Icons.Default.PlaylistAdd, "Playlist", false) { showPlaylistDialog = true }
+                        DropdownMenuItem(
+                            text = { Text("Set Ringtone / Trim") },
+                            leadingIcon = { Icon(Icons.Rounded.ContentCut, null, tint = NovaRose) },
+                            onClick = { showMenu = false; showTrimmer = true }
+                        )
+                        if (isDbItem) {
+                            DropdownMenuItem(
+                                text = { Text("Add to Playlist") },
+                                leadingIcon = { Icon(Icons.Rounded.PlaylistAdd, null, tint = NovaPrimary) },
+                                onClick = { showMenu = false; showPlaylistDialog = true }
+                            )
                         }
-                    }
-                    item {
-                        ActionChip(Icons.Default.GraphicEq, "EQ", false) { showEqualizer = true }
+                        DropdownMenuItem(
+                            text = { Text("Track Details") },
+                            leadingIcon = { Icon(Icons.Rounded.Info, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+                            onClick = { showMenu = false; showInfoDialog = true }
+                        )
                     }
                 }
             }
 
-            // ── Tabs: Queue | Lyrics ────────────────────────────────────
-            item {
-                TabRow(
-                    selectedTabIndex  = selectedTab,
-                    modifier          = Modifier.padding(horizontal = 20.dp).clip(RoundedCornerShape(14.dp)),
-                    containerColor    = if (isDark) SpaceCardHigh else Color(0xFFF0F4FF),
-                    contentColor      = NovaPrimary,
-                    indicator         = { tabPositions ->
+            Spacer(Modifier.height(8.dp))
+
+            // ── Hero Album Art Card (Retro Floating Card + Tap-to-Lyrics) ─
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f, fill = false)
+                    .padding(horizontal = 24.dp, vertical = 6.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                // Ambient diffuse glow behind the card
+                if (isDark) {
+                    Box(
+                        modifier = Modifier
+                            .size(280.dp)
+                            .graphicsLayer { rotationZ = auroraRotation }
+                            .background(
+                                Brush.sweepGradient(
+                                    listOf(
+                                        NovaPrimary.copy(alpha = 0.28f),
+                                        NovaViolet.copy(alpha = 0.22f),
+                                        NovaRose.copy(alpha = 0.16f),
+                                        NovaPrimary.copy(alpha = 0.28f)
+                                    )
+                                ),
+                                CircleShape
+                            )
+                            .blur(48.dp)
+                    )
+                }
+
+                // Squircle Card
+                Box(
+                    modifier = Modifier
+                        .size(280.dp)
+                        .scale(artScale)
+                        .shadow(
+                            elevation = if (playing) 28.dp else 12.dp,
+                            shape = RoundedCornerShape(28.dp),
+                            spotColor = NovaPrimary.copy(alpha = if (playing) 0.35f else 0.12f)
+                        )
+                        .clip(RoundedCornerShape(28.dp))
+                        .background(if (isDark) SpaceCardHigh else Color(0xFFE4ECF7))
+                        .border(
+                            1.dp,
+                            if (isDark) SpaceBorder else Color.White,
+                            RoundedCornerShape(28.dp)
+                        )
+                        .clickable { showLyricsOverlay = !showLyricsOverlay },
+                    contentAlignment = Alignment.Center
+                ) {
+                    // Artwork Image
+                    val imageModel = remember(item.thumbnailUrl, item.targetPath) {
+                        when {
+                            item.thumbnailUrl.isNotBlank() -> item.thumbnailUrl
+                            item.targetPath.isNotBlank()   -> File(item.targetPath)
+                            else -> null
+                        }
+                    }
+                    if (imageModel != null) {
+                        AsyncImage(
+                            model = coil.request.ImageRequest.Builder(context)
+                                .data(imageModel)
+                                .crossfade(true)
+                                .build(),
+                            contentDescription = item.title,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else {
+                        Icon(
+                            Icons.Rounded.MusicNote,
+                            null,
+                            tint = NovaPrimary.copy(alpha = 0.5f),
+                            modifier = Modifier.size(88.dp)
+                        )
+                    }
+
+                    // Lyrics Overlay (Tap toggles)
+                    if (showLyricsOverlay) {
                         Box(
                             modifier = Modifier
-                                .tabIndicatorOffset(tabPositions[selectedTab])
-                                .height(2.dp)
-                                .background(Brush.horizontalGradient(GradientCyan), RoundedCornerShape(1.dp))
-                        )
+                                .fillMaxSize()
+                                .background(Color.Black.copy(alpha = 0.82f))
+                                .padding(20.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .verticalScroll(rememberScrollState()),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                if (!lyrics.isNullOrBlank()) {
+                                    Text(
+                                        lyrics,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = Color.White,
+                                        lineHeight = 24.sp,
+                                        textAlign = TextAlign.Center
+                                    )
+                                } else {
+                                    Icon(
+                                        Icons.Rounded.FormatQuote,
+                                        null,
+                                        tint = NovaPrimary,
+                                        modifier = Modifier.size(36.dp)
+                                    )
+                                    Spacer(Modifier.height(8.dp))
+                                    Text(
+                                        "No lyrics available",
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                    Spacer(Modifier.height(4.dp))
+                                    Text(
+                                        "Tap again to return to album cover",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = Color.White.copy(alpha = 0.7f),
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
+                            }
+                        }
                     }
-                ) {
-                    listOf("Queue", "Lyrics", "Info").forEachIndexed { index, title ->
-                        Tab(
-                            selected = selectedTab == index,
-                            onClick  = { selectedTab = index },
-                            text     = { Text(title, fontWeight = if (selectedTab == index) FontWeight.Bold else FontWeight.Normal) }
-                        )
+
+                    // Tap-to-lyrics pill hint at bottom right
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(12.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color.Black.copy(alpha = 0.6f))
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                if (showLyricsOverlay) Icons.Rounded.Image else Icons.Rounded.Lyrics,
+                                null,
+                                tint = Color.White,
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                if (showLyricsOverlay) "Cover" else "Lyrics",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color.White
+                            )
+                        }
                     }
                 }
             }
 
-            // ── Tab Content ─────────────────────────────────────────────
-            when (selectedTab) {
-                0 -> {
-                    // Queue
-                    if (queue.isEmpty()) {
-                        item {
-                            Box(Modifier.fillMaxWidth().padding(32.dp), Alignment.Center) {
-                                Text("Queue is empty", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(14.dp))
+
+            // ── Track Title, Artist & Favorite ──────────────────────────
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = item.title,
+                        style = MaterialTheme.typography.titleLarge.copy(fontSize = 20.sp),
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        color = MaterialTheme.colorScheme.onBackground,
+                        modifier = Modifier.basicMarquee()
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = item.uploader.ifBlank { "Unknown Artist" },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = NovaPrimary,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                Spacer(Modifier.width(8.dp))
+
+                // Bouncy Favorite Heart
+                IconButton(
+                    onClick = {
+                        scope.launch {
+                            if (isDbItem) {
+                                repository.toggleFavorite(item.id)
+                                isFavDb = !isFavDb
+                            } else {
+                                repository.preferences.toggleDeviceFavorite(item.targetPath)
                             }
                         }
-                    } else {
+                    },
+                    modifier = Modifier
+                        .size(46.dp)
+                        .clip(CircleShape)
+                        .background(if (isFav) NovaRose.copy(alpha = 0.14f) else Color.Transparent)
+                ) {
+                    Icon(
+                        if (isFav) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                        contentDescription = "Favorite",
+                        tint = if (isFav) NovaRose else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(26.dp)
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            // ── Retro Scrubber / Progress Bar ───────────────────────────
+            var dragging by remember { mutableStateOf(false) }
+            var dragValue by remember { mutableFloatStateOf(0f) }
+            val displayPos = if (dragging) dragValue else position.toFloat()
+            val dur        = duration.toFloat().coerceAtLeast(1f)
+
+            Column(modifier = Modifier.padding(horizontal = 20.dp)) {
+                Slider(
+                    value = (displayPos / dur).coerceIn(0f, 1f),
+                    onValueChange = { frac ->
+                        dragging  = true
+                        dragValue = frac * dur
+                    },
+                    onValueChangeFinished = {
+                        manager.seekTo(dragValue.toLong())
+                        dragging = false
+                    },
+                    colors = SliderDefaults.colors(
+                        thumbColor = NovaPrimary,
+                        activeTrackColor = NovaPrimary,
+                        inactiveTrackColor = if (isDark) SpaceBorder else Color(0xFFD6E2F3)
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        formatDuration(displayPos.toLong()),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.Medium
+                    )
+                    // Tap on duration to toggle remaining time (-02:45 vs 03:15)
+                    Text(
+                        if (showRemainingTime) "-${formatDuration((dur - displayPos).toLong().coerceAtLeast(0L))}"
+                        else formatDuration(duration),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.clickable { showRemainingTime = !showRemainingTime }
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(6.dp))
+
+            // ── Iconic Retro 5-Button Playback Controls ──────────────────
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // 1. Shuffle
+                IconButton(
+                    onClick = { manager.toggleShuffle() },
+                    modifier = Modifier.size(48.dp)
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            Icons.Rounded.Shuffle,
+                            contentDescription = "Shuffle",
+                            tint = if (shuffle) NovaPrimary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            modifier = Modifier.size(24.dp)
+                        )
+                        if (shuffle) {
+                            Box(
+                                modifier = Modifier
+                                    .size(4.dp)
+                                    .clip(CircleShape)
+                                    .background(NovaPrimary)
+                            )
+                        }
+                    }
+                }
+
+                // 2. Previous
+                IconButton(
+                    onClick = { manager.playPrevious() },
+                    modifier = Modifier
+                        .size(54.dp)
+                        .clip(CircleShape)
+                ) {
+                    Icon(
+                        Icons.Rounded.SkipPrevious,
+                        contentDescription = "Previous",
+                        tint = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(34.dp)
+                    )
+                }
+
+                // 3. Center Retro Floating Action Play/Pause Button (FAB)
+                Box(
+                    modifier = Modifier
+                        .size(68.dp)
+                        .shadow(
+                            elevation = 16.dp,
+                            shape = CircleShape,
+                            spotColor = NovaPrimary.copy(alpha = 0.5f)
+                        )
+                        .clip(CircleShape)
+                        .background(Brush.linearGradient(GradientCyan))
+                        .clickable { manager.togglePlayPause() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                        contentDescription = if (playing) "Pause" else "Play",
+                        tint = Color(0xFF001824),
+                        modifier = Modifier.size(36.dp)
+                    )
+                }
+
+                // 4. Next
+                IconButton(
+                    onClick = { manager.playNext() },
+                    modifier = Modifier
+                        .size(54.dp)
+                        .clip(CircleShape)
+                ) {
+                    Icon(
+                        Icons.Rounded.SkipNext,
+                        contentDescription = "Next",
+                        tint = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(34.dp)
+                    )
+                }
+
+                // 5. Repeat (3 states: Off -> All -> One)
+                IconButton(
+                    onClick = { manager.toggleRepeatMode() },
+                    modifier = Modifier.size(48.dp)
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            imageVector = if (repeat == Player.REPEAT_MODE_ONE) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat,
+                            contentDescription = "Repeat",
+                            tint = if (repeat != Player.REPEAT_MODE_OFF) NovaPrimary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            modifier = Modifier.size(24.dp)
+                        )
+                        if (repeat != Player.REPEAT_MODE_OFF) {
+                            Box(
+                                modifier = Modifier
+                                    .size(4.dp)
+                                    .clip(CircleShape)
+                                    .background(NovaPrimary)
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(14.dp))
+
+            // ── Retro Bottom Dock (Speed, Equalizer, Sleep, Queue) ──────
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(if (isDark) SpaceCardHigh else Color(0xFFF1F5FB))
+                    .border(0.5.dp, if (isDark) SpaceBorder else Color(0xFFE2EAF4), RoundedCornerShape(20.dp))
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Playback speed cycle chip
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .clickable {
+                            val speeds = listOf(0.75f, 1f, 1.25f, 1.5f, 2f)
+                            val idx = speeds.indexOfFirst { kotlin.math.abs(it - speed) < 0.01f }.let { if (it < 0) 1 else it }
+                            val next = speeds[(idx + 1) % speeds.size]
+                            manager.setSpeed(next)
+                        }
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                ) {
+                    Text(
+                        "${speed}×",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = NovaPrimary
+                    )
+                }
+
+                // Equalizer button
+                IconButton(
+                    onClick = { showEqualizer = true },
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        Icons.Rounded.GraphicEq,
+                        contentDescription = "Equalizer",
+                        tint = NovaViolet,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+
+                // Sleep timer button
+                IconButton(
+                    onClick = {
+                        val options = listOf(0, 15, 30, 45, 60)
+                        val next = options[(options.indexOf(sleepTimerMinutes) + 1) % options.size]
+                        startSleepTimer(next)
+                    },
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        Icons.Rounded.Timer,
+                        contentDescription = "Sleep Timer",
+                        tint = if (sleepTimerActive) NovaPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+
+                // Ringtone Cutter shortcut
+                IconButton(
+                    onClick = { showTrimmer = true },
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        Icons.Rounded.ContentCut,
+                        contentDescription = "Trim",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+
+                // Queue button with count pill
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (showQueueSheet) NovaPrimary.copy(alpha = 0.15f) else Color.Transparent)
+                        .clickable { showQueueSheet = !showQueueSheet }
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Rounded.QueueMusic,
+                        contentDescription = "Queue",
+                        tint = if (showQueueSheet) NovaPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    if (queue.isNotEmpty()) {
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            "${queue.size}",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (showQueueSheet) NovaPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    // ── Slide-up Queue Bottom Sheet (Retro Style) ──────────────────────
+    if (showQueueSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showQueueSheet = false },
+            containerColor = if (isDark) SpaceCard else LightBg,
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(bottom = 24.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            "UP NEXT",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = NovaPrimary,
+                            letterSpacing = 2.sp
+                        )
+                        Text(
+                            "${queue.size} songs in queue",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    IconButton(onClick = { showQueueSheet = false }) {
+                        Icon(Icons.Rounded.Close, "Close", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+
+                if (queue.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(40.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("Queue is empty", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
                         itemsIndexed(queue, key = { _, q -> q.id }) { idx, track ->
                             val isCurrent = track.id == item.id
                             Row(
@@ -506,86 +819,40 @@ fun AudioPlayerSheet(onDismiss: () -> Unit) {
                                         else Color.Transparent
                                     )
                                     .clickable { manager.playMedia(track) }
-                                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                                    .padding(horizontal = 16.dp, vertical = 10.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
                                     "${idx + 1}",
                                     modifier = Modifier.width(28.dp),
-                                    color    = if (isCurrent) NovaPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    color = if (isCurrent) NovaPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
                                     fontSize = 12.sp
                                 )
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         track.title,
-                                        maxLines   = 1,
-                                        overflow   = TextOverflow.Ellipsis,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
                                         fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
-                                        color      = if (isCurrent) NovaPrimary else MaterialTheme.colorScheme.onSurface,
-                                        fontSize   = 14.sp
+                                        color = if (isCurrent) NovaPrimary else MaterialTheme.colorScheme.onSurface,
+                                        fontSize = 14.sp
                                     )
                                     Text(
                                         track.uploader.ifBlank { "Unknown" },
-                                        style   = MaterialTheme.typography.labelSmall,
-                                        color   = MaterialTheme.colorScheme.onSurfaceVariant
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
                                 if (isCurrent && playing) {
-                                    Icon(Icons.Default.GraphicEq, "Playing", tint = NovaPrimary, modifier = Modifier.size(18.dp))
+                                    Icon(
+                                        Icons.Rounded.GraphicEq,
+                                        contentDescription = "Playing",
+                                        tint = NovaPrimary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
                                 }
                             }
-                        }
-                    }
-                }
-                1 -> {
-                    // Lyrics
-                    item {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 20.dp)
-                                .clip(RoundedCornerShape(20.dp))
-                                .background(if (isDark) SpaceCardHigh else LightCardAlt)
-                                .padding(20.dp)
-                        ) {
-                            if (lyrics != null) {
-                                Text(
-                                    lyrics,
-                                    style   = MaterialTheme.typography.bodyMedium,
-                                    color   = MaterialTheme.colorScheme.onSurface,
-                                    lineHeight = 24.sp
-                                )
-                            } else {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-                                    Icon(Icons.Default.MusicNote, null, tint = NovaPrimary.copy(alpha = 0.4f), modifier = Modifier.size(40.dp))
-                                    Spacer(Modifier.height(8.dp))
-                                    Text("No lyrics found", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    Text("Add a .lrc or .txt file next to the audio", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                            }
-                        }
-                    }
-                }
-                2 -> {
-                    // Info
-                    item {
-                        val file = File(item.targetPath)
-                        Column(
-                            modifier  = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            InfoRow("Title", item.title)
-                            InfoRow("Artist", item.uploader.ifBlank { "—" })
-                            InfoRow("Speed", "${speed}×")
-                            InfoRow("Format", when {
-                                item.targetPath.endsWith(".mp3") -> "MP3 Audio"
-                                item.targetPath.endsWith(".m4a") -> "M4A Audio"
-                                item.targetPath.endsWith(".opus") -> "Opus Audio"
-                                else -> "Audio File"
-                            })
-                            InfoRow("Size", if (file.exists()) "%.2f MB".format(file.length() / 1048576f) else "Streaming")
-                            InfoRow("Path", item.targetPath.ifBlank { "App Storage" })
                         }
                     }
                 }
@@ -593,6 +860,7 @@ fun AudioPlayerSheet(onDismiss: () -> Unit) {
         }
     }
 
+    // Dialogs
     if (showEqualizer) EqualizerDialog(onDismiss = { showEqualizer = false })
     if (showTrimmer)   AudioTrimmerDialog(media = item, onDismiss = { showTrimmer = false })
     if (showPlaylistDialog && isDbItem) {
@@ -608,70 +876,39 @@ fun AudioPlayerSheet(onDismiss: () -> Unit) {
             onDismiss = { showPlaylistDialog = false }
         )
     }
-}
 
-// ── Private Subcomponents ──────────────────────────────────────────────────
-
-@Composable
-private fun ControlIconButton(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    active: Boolean,
-    size: androidx.compose.ui.unit.Dp,
-    onClick: () -> Unit
-) {
-    IconButton(onClick = onClick, modifier = Modifier.size(size)) {
-        Icon(
-            icon,
-            null,
-            tint     = if (active) NovaPrimary else LocalContentColor.current.copy(alpha = 0.7f),
-            modifier = Modifier.size(size * 0.56f)
+    if (showInfoDialog) {
+        val file = File(item.targetPath)
+        AlertDialog(
+            onDismissRequest = { showInfoDialog = false },
+            title = { Text("Track Details", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    DetailRow("Title", item.title)
+                    DetailRow("Artist", item.uploader.ifBlank { "Unknown" })
+                    DetailRow("Format", item.targetPath.substringAfterLast(".", "MP3").uppercase())
+                    DetailRow("Size", if (file.exists()) "%.2f MB".format(file.length() / 1048576f) else "Streaming")
+                    DetailRow("Speed", "${speed}×")
+                    DetailRow("File Path", item.targetPath.ifBlank { "Local storage" })
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showInfoDialog = false }) {
+                    Text("Close", fontWeight = FontWeight.Bold)
+                }
+            }
         )
     }
 }
 
 @Composable
-private fun ActionChip(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    label: String,
-    active: Boolean,
-    onClick: () -> Unit
-) {
-    val isDark = LocalAppDark.current
+private fun DetailRow(label: String, value: String) {
     Row(
-        modifier = Modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(
-                if (active) NovaPrimary.copy(alpha = 0.15f)
-                else if (isDark) SpaceCardHigh else Color(0xFFF0F4FF)
-            )
-            .border(
-                0.5.dp,
-                if (active) NovaPrimary.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
-                RoundedCornerShape(12.dp)
-            )
-            .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
+        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Icon(icon, null, tint = if (active) NovaPrimary else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
-        Text(label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = if (active) NovaPrimary else MaterialTheme.colorScheme.onSurfaceVariant)
-    }
-}
-
-@Composable
-private fun InfoRow(label: String, value: String) {
-    val isDark = LocalAppDark.current
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(if (isDark) SpaceCardHigh else LightCardAlt)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f), fontSize = 13.sp)
-        Text(value, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.End, modifier = Modifier.weight(1.5f))
+        Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -738,11 +975,3 @@ private fun findLyrics(targetPath: String): String? = runCatching {
     val txt = File(dir, "$base.txt")
     if (txt.exists()) txt.readText().trim().take(3000).ifBlank { null } else null
 }.getOrNull()
-
-// Use Material3 TabRowDefaults.tabIndicatorOffset
-private fun Modifier.tabIndicatorOffset(currentTabPosition: TabPosition): Modifier =
-    this
-        .fillMaxWidth()
-        .wrapContentSize(Alignment.BottomStart)
-        .offset(x = currentTabPosition.left)
-        .width(currentTabPosition.width)

@@ -132,37 +132,31 @@ class DownloadService : Service() {
 
             result.fold(
                 onSuccess = { file ->
-                    runCatching {
-                        val publicFile = com.zyvro.app.util.StorageHelper.exportToPublicStorage(
+                    val publicFile = runCatching {
+                        com.zyvro.app.util.StorageHelper.exportToPublicStorage(
                             context = this@DownloadService,
                             srcFile = file,
                             mediaType = download.mediaType,
                             title = download.title,
                             customDirUriOrPath = customDir
                         )
-                        repository.markCompleted(download.id, publicFile.absolutePath)
-                        // Requested-vs-actual proof: probe real video height into formatNote.
-                        runCatching {
-                            val actual = probeVideoHeight(publicFile)
-                            if (actual != null) {
-                                repository.updateFormatNote(download.id, "${actual}p")
-                            }
+                    }.getOrNull()
+                    val finalFile = if (publicFile != null && publicFile.exists()) publicFile else file
+
+                    repository.markCompleted(download.id, finalFile.absolutePath)
+                    // Requested-vs-actual proof: probe real video height into formatNote.
+                    runCatching {
+                        val actual = probeVideoHeight(finalFile)
+                        if (actual != null) {
+                            repository.updateFormatNote(download.id, "${actual}p")
                         }
-                        NotificationHelper.showCompletedNotification(
-                            this@DownloadService,
-                            download.id.toInt(),
-                            download.title,
-                            publicFile.absolutePath
-                        )
-                    }.onFailure { error ->
-                        repository.markFailed(
-                            download.id,
-                            com.zyvro.app.engine.DownloadErrors.friendlyMessage(
-                                error.message ?: "Could not save downloaded file",
-                                hasCookies = false
-                            )
-                        )
                     }
+                    NotificationHelper.showCompletedNotification(
+                        this@DownloadService,
+                        download.id.toInt(),
+                        download.title,
+                        finalFile.absolutePath
+                    )
                 },
                 onFailure = { error ->
                     repository.markFailed(

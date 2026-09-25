@@ -68,7 +68,7 @@ object YtDlpUpdater {
             val appContext = context.applicationContext
             ensureYtDlpCore(appContext)
 
-            val release = fetchLatestRelease(channel.apiUrl)
+            val release = resolveReleaseWithoutApi() ?: fetchLatestRelease(channel.apiUrl)
             val oldTag = prefs(appContext).getString(VERSION_KEY, null)
             if (release.tag == oldTag) return@runCatching release.name
 
@@ -115,6 +115,31 @@ object YtDlpUpdater {
         val name: String,
         val binaryUrl: String
     )
+
+    private fun resolveReleaseWithoutApi(): Release? = runCatching {
+        val conn = (URL("https://github.com/yt-dlp/yt-dlp/releases/latest").openConnection() as HttpURLConnection).apply {
+            instanceFollowRedirects = false
+            requestMethod = "HEAD"
+            connectTimeout = CONNECT_TIMEOUT_MS
+            readTimeout = READ_TIMEOUT_MS
+            setRequestProperty("User-Agent", USER_AGENT)
+        }
+        try {
+            val location = conn.getHeaderField("Location") ?: conn.getHeaderField("location")
+            if (!location.isNullOrBlank()) {
+                val tag = location.substringAfterLast("/")
+                if (tag.isNotBlank()) {
+                    Release(
+                        tag = tag,
+                        name = "yt-dlp $tag",
+                        binaryUrl = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp"
+                    )
+                } else null
+            } else null
+        } finally {
+            conn.disconnect()
+        }
+    }.getOrNull()
 
     private fun fetchLatestRelease(apiUrl: String): Release {
         val connection = (URL(apiUrl).openConnection() as HttpURLConnection).apply {

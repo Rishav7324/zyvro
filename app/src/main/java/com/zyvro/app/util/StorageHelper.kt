@@ -113,13 +113,15 @@ object StorageHelper {
                 isImage -> Environment.DIRECTORY_PICTURES
                 else -> Environment.DIRECTORY_DOWNLOADS
             }
-            val publicDir = File(Environment.getExternalStoragePublicDirectory(folderName), "Zyvro")
-            if (!publicDir.exists()) publicDir.mkdirs()
-            val destFile = File(publicDir, srcFile.name)
-
-            if (srcFile.absolutePath != destFile.absolutePath) {
-                srcFile.copyTo(destFile, overwrite = true)
-            }
+            val destFile = runCatching {
+                val publicDir = File(Environment.getExternalStoragePublicDirectory(folderName), "Zyvro")
+                if (!publicDir.exists()) publicDir.mkdirs()
+                val target = File(publicDir, srcFile.name)
+                if (srcFile.absolutePath != target.absolutePath) {
+                    srcFile.copyTo(target, overwrite = true)
+                }
+                target
+            }.getOrNull() ?: srcFile
 
             // Trigger system MediaScanner so Gallery and Music apps index it immediately
             MediaScannerConnection.scanFile(
