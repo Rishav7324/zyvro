@@ -113,8 +113,7 @@ import androidx.media3.ui.PlayerView
 import com.zyvro.app.player.MediaPlayerManager
 import com.zyvro.app.player.PlayerTrack
 import com.zyvro.app.ui.components.equalizer.EqualizerDialog
-import com.zyvro.app.ui.theme.NovaAqua
-import com.zyvro.app.ui.theme.NovaAquaDeep
+import com.zyvro.app.ui.theme.*
 import kotlinx.coroutines.delay
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -485,9 +484,9 @@ fun VideoPlayerView(onClose: () -> Unit) {
                             .size(56.dp)
                             .clip(CircleShape)
                             .background(Color.Black.copy(alpha = 0.75f))
-                            .border(1.5.dp, NovaAqua, CircleShape)
+                            .border(1.5.dp, NovaPrimary, CircleShape)
                     ) {
-                        Icon(Icons.Default.LockOpen, contentDescription = "Unlock Controls", tint = NovaAqua)
+                        Icon(Icons.Default.LockOpen, contentDescription = "Unlock Controls", tint = NovaPrimary)
                     }
                 }
             } else {
@@ -721,8 +720,8 @@ fun VideoPlayerView(onClose: () -> Unit) {
                                     valueRange = 0f..safeDur.toFloat(),
                                     modifier = Modifier.weight(1f),
                                     colors = SliderDefaults.colors(
-                                        thumbColor = NovaAqua,
-                                        activeTrackColor = NovaAqua,
+                                        thumbColor = NovaPrimary,
+                                        activeTrackColor = NovaPrimary,
                                         inactiveTrackColor = Color.White.copy(alpha = 0.3f)
                                     )
                                 )
@@ -755,14 +754,14 @@ fun VideoPlayerView(onClose: () -> Unit) {
                                     onClick = { manager.togglePlayPause() },
                                     modifier = Modifier
                                         .size(54.dp)
+                                        .shadow(12.dp, CircleShape, spotColor = NovaPrimary.copy(alpha = 0.5f))
                                         .clip(CircleShape)
-                                        .background(NovaAqua)
-                                        .shadow(8.dp, CircleShape, ambientColor = NovaAqua)
+                                        .background(Brush.linearGradient(GradientCyan))
                                 ) {
                                     Icon(
                                         imageVector = if (playing) Icons.Default.Pause else Icons.Default.PlayArrow,
                                         contentDescription = "Play/Pause",
-                                        tint = Color(0xFF04111D),
+                                        tint = Color(0xFF001824),
                                         modifier = Modifier.size(32.dp)
                                     )
                                 }
@@ -816,8 +815,8 @@ fun VideoPlayerView(onClose: () -> Unit) {
                                         onClick = { manager.setSpeed(itemSpeed) },
                                         label = { Text("${itemSpeed}x", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
                                         colors = FilterChipDefaults.filterChipColors(
-                                            selectedContainerColor = NovaAqua,
-                                            selectedLabelColor = Color(0xFF04111D),
+                                            selectedContainerColor = NovaPrimary,
+                                            selectedLabelColor = Color(0xFF001824),
                                             containerColor = Color.White.copy(alpha = 0.15f),
                                             labelColor = Color.White
                                         ),
@@ -883,7 +882,7 @@ fun VideoPlayerView(onClose: () -> Unit) {
             Surface(
                 shape = RoundedCornerShape(24.dp),
                 color = Color.Black.copy(alpha = 0.82f),
-                border = androidx.compose.foundation.BorderStroke(1.dp, NovaAqua.copy(alpha = 0.5f)),
+                border = androidx.compose.foundation.BorderStroke(1.dp, NovaPrimary.copy(alpha = 0.5f)),
                 modifier = Modifier.clickable {
                     manager.seekTo(resumeOfferMs)
                     resumeOfferMs = 0L
@@ -893,7 +892,7 @@ fun VideoPlayerView(onClose: () -> Unit) {
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
                 ) {
-                    Icon(Icons.Default.PlayArrow, null, tint = NovaAqua, modifier = Modifier.size(20.dp))
+                    Icon(Icons.Default.PlayArrow, null, tint = NovaPrimary, modifier = Modifier.size(20.dp))
                     Spacer(Modifier.width(8.dp))
                     Text(
                         text = "Resume from ${formatDuration(resumeOfferMs)}",
@@ -972,7 +971,7 @@ private fun VerticalLevelHUD(
                         .fillMaxWidth()
                         .fillMaxHeight((percent / 100f).coerceIn(0f, 1f))
                         .clip(CircleShape)
-                        .background(NovaAqua)
+                        .background(Brush.verticalGradient(listOf(NovaPrimary, NovaViolet)))
                 )
             }
 
@@ -997,7 +996,7 @@ private fun SeekScrubHUD(
         modifier = modifier
             .clip(RoundedCornerShape(22.dp))
             .background(Color.Black.copy(alpha = 0.86f))
-            .border(1.2.dp, NovaAqua.copy(alpha = 0.35f), RoundedCornerShape(22.dp))
+            .border(1.2.dp, NovaPrimary.copy(alpha = 0.45f), RoundedCornerShape(22.dp))
             .padding(horizontal = 26.dp, vertical = 16.dp),
         contentAlignment = Alignment.Center
     ) {
@@ -1053,12 +1052,12 @@ private fun GeneralHudPill(
         modifier = modifier
             .clip(CircleShape)
             .background(Color.Black.copy(alpha = 0.8f))
-            .border(1.dp, NovaAqua.copy(alpha = 0.5f), CircleShape)
+            .border(1.dp, NovaPrimary.copy(alpha = 0.5f), CircleShape)
             .padding(horizontal = 20.dp, vertical = 8.dp)
     ) {
         Text(
             text = text,
-            color = NovaAqua,
+            color = NovaPrimary,
             fontWeight = FontWeight.Bold,
             fontSize = 13.sp
         )

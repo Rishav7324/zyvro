@@ -29,6 +29,8 @@ import com.zyvro.app.engine.VideoInfo
 import com.zyvro.app.ui.theme.NovaCyan
 import com.zyvro.app.ui.theme.NovaCyanDeep
 import com.zyvro.app.ui.theme.NovaPrimary
+import com.zyvro.app.ui.theme.SpaceCard
+import com.zyvro.app.ui.theme.LightBg
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -85,7 +87,7 @@ fun FormatSelectionSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = if (isDark) Color(0xFF0C1926) else Color(0xFFEEF7F7),
+        containerColor = if (isDark) SpaceCard else LightBg,
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
     ) {
         LazyColumn(

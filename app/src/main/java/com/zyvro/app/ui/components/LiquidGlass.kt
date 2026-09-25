@@ -1,14 +1,19 @@
 package com.zyvro.app.ui.components
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
-import com.zyvro.app.ui.theme.LocalAppDark
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -24,23 +29,31 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.zyvro.app.ui.theme.NovaCyan
-import com.zyvro.app.ui.theme.NovaCyanDeep
+import com.zyvro.app.ui.theme.LocalAppDark
+import com.zyvro.app.ui.theme.NovaPrimary
+import com.zyvro.app.ui.theme.NovaPrimaryDeep
+import com.zyvro.app.ui.theme.NovaViolet
+import com.zyvro.app.ui.theme.SpaceBorder
+import com.zyvro.app.ui.theme.SpaceCard
+import com.zyvro.app.ui.theme.SpaceCardHigh
+import com.zyvro.app.ui.theme.SpaceGlass
 
-// Apple-inspired tactile spring specs
+// ═══════════════════════════════════════════════════════════════════════════
+// ZYVRO LIQUID GLASS v4.0 — Deep Space Aura Edition
+// ═══════════════════════════════════════════════════════════════════════════
+
 val AppleSpringSpec = spring<Float>(
     dampingRatio = Spring.DampingRatioMediumBouncy,
-    stiffness = Spring.StiffnessMediumLow
+    stiffness    = Spring.StiffnessMediumLow
 )
 
 val AppleSmoothSpringSpec = spring<Float>(
     dampingRatio = Spring.DampingRatioNoBouncy,
-    stiffness = Spring.StiffnessMedium
+    stiffness    = Spring.StiffnessMedium
 )
 
 /**
- * Zyvro screen backdrop.
- * iOS-style flat grouped background so cards read as clean inset groups.
+ * Deep Space background with subtle animated aurora gradient.
  */
 @Composable
 fun Modifier.ambientLiquidBackground(
@@ -50,60 +63,61 @@ fun Modifier.ambientLiquidBackground(
 }
 
 /**
- * Zyvro clean-glass Modifier (2.0 minimal).
- * Flat iOS-grouped surface: near-solid fill, hairline border, restrained shadow.
- * Keeps the same API so all screens keep compiling.
+ * Deep Space Glass Modifier — frosted aura surface with neon border shimmer.
  */
 @Composable
 fun Modifier.liquidGlass(
-    shape: Shape = RoundedCornerShape(22.dp),
-    borderAlpha: Float = 0.35f,
-    elevation: Dp = 2.dp,
+    shape: Shape = RoundedCornerShape(20.dp),
+    borderAlpha: Float = 0.30f,
+    elevation: Dp = 4.dp,
     tintColor: Color? = null,
     isDark: Boolean = LocalAppDark.current
 ): Modifier {
     val backgroundColor = if (isDark) {
-        tintColor?.copy(alpha = 0.22f) ?: Color(0xFF1C1C1E).copy(alpha = 0.96f)
+        tintColor?.copy(alpha = 0.18f) ?: SpaceCard.copy(alpha = 0.95f)
     } else {
-        tintColor?.copy(alpha = 0.10f) ?: Color.White.copy(alpha = 0.98f)
+        tintColor?.copy(alpha = 0.08f) ?: Color.White.copy(alpha = 0.97f)
     }
 
     val borderColor = if (isDark) {
-        Color.White.copy(alpha = 0.10f * (1f + borderAlpha))
+        tintColor?.copy(alpha = borderAlpha * 1.4f)
+            ?: NovaPrimary.copy(alpha = borderAlpha * 0.5f)
     } else {
-        Color(0xFFC6C6C8).copy(alpha = 0.55f)
+        Color(0xFFB0C8FF).copy(alpha = 0.6f)
     }
+
+    val glowColor = tintColor?.copy(alpha = 0.12f) ?: NovaPrimary.copy(alpha = 0.08f)
 
     return this
         .shadow(
-            elevation = elevation,
-            shape = shape,
-            ambientColor = Color.Black.copy(alpha = if (isDark) 0.4f else 0.08f),
-            spotColor = Color.Black.copy(alpha = if (isDark) 0.4f else 0.08f)
+            elevation   = elevation,
+            shape       = shape,
+            ambientColor = if (isDark) glowColor else Color.Black.copy(alpha = 0.05f),
+            spotColor   = if (isDark) glowColor else Color.Black.copy(alpha = 0.06f)
         )
         .background(backgroundColor, shape)
-        .border(0.5.dp, borderColor, shape)
+        .border(0.6.dp, borderColor, shape)
 }
 
 /**
- * Interactive clean-glass Card with a subtle press scale.
+ * Interactive Deep Space glass card with tactile press animation.
  */
 @Composable
 fun LiquidGlassCard(
     modifier: Modifier = Modifier,
-    shape: Shape = RoundedCornerShape(22.dp),
+    shape: Shape = RoundedCornerShape(20.dp),
     tintColor: Color? = null,
-    borderAlpha: Float = 0.35f,
-    elevation: Dp = 2.dp,
+    borderAlpha: Float = 0.30f,
+    elevation: Dp = 4.dp,
     onClick: (() -> Unit)? = null,
     content: @Composable BoxScope.() -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
-        targetValue = if (isPressed && onClick != null) 0.965f else 1.0f,
-        animationSpec = AppleSpringSpec,
-        label = "liquid-glass-card-scale"
+        targetValue    = if (isPressed && onClick != null) 0.96f else 1.0f,
+        animationSpec  = AppleSpringSpec,
+        label          = "card-scale"
     )
 
     Box(
@@ -115,8 +129,8 @@ fun LiquidGlassCard(
                 if (onClick != null) {
                     Modifier.clickable(
                         interactionSource = interactionSource,
-                        indication = null,
-                        onClick = onClick
+                        indication        = null,
+                        onClick           = onClick
                     )
                 } else Modifier
             ),
@@ -125,7 +139,7 @@ fun LiquidGlassCard(
 }
 
 /**
- * Capsule / Pill for tags, chips, and quick action triggers.
+ * Neon Pill / Chip — aurora gradient when selected.
  */
 @Composable
 fun LiquidGlassPill(
@@ -139,9 +153,9 @@ fun LiquidGlassPill(
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
-        targetValue = if (isPressed && onClick != null) 0.92f else 1.0f,
+        targetValue   = if (isPressed && onClick != null) 0.90f else 1.0f,
         animationSpec = AppleSpringSpec,
-        label = "pill-scale"
+        label         = "pill-scale"
     )
 
     val shape = CircleShape
@@ -149,46 +163,90 @@ fun LiquidGlassPill(
 
     val bgBrush = if (isSelected) {
         Brush.horizontalGradient(
-            listOf(
-                selectedColor.copy(alpha = if (isDark) 0.90f else 0.95f),
-                if (isDark) NovaCyanDeep else NovaCyan
-            )
+            listOf(selectedColor, NovaViolet)
         )
     } else {
         Brush.verticalGradient(
-            listOf(
-                if (isDark) Color(0xFF162B3D).copy(alpha = 0.75f) else Color.White.copy(alpha = 0.92f),
-                if (isDark) Color(0xFF0F1E2C).copy(alpha = 0.85f) else Color(0xFFE5F1FA).copy(alpha = 0.70f)
-            )
+            if (isDark) {
+                listOf(SpaceCardHigh, SpaceGlass)
+            } else {
+                listOf(Color.White, Color(0xFFF0F4FF))
+            }
         )
     }
 
-    val borderBrush = Brush.linearGradient(
-        listOf(
-            if (isSelected) Color.White.copy(alpha = 0.90f) else if (isDark) Color.White.copy(alpha = 0.45f) else Color.White.copy(alpha = 0.98f),
-            if (isSelected) Color.White.copy(alpha = 0.40f) else if (isDark) NovaCyan.copy(alpha = 0.30f) else Color(0xFF00B4D8).copy(alpha = 0.45f)
+    val borderBrush = if (isSelected) {
+        Brush.horizontalGradient(listOf(Color.White.copy(alpha = 0.6f), Color.White.copy(alpha = 0.2f)))
+    } else {
+        Brush.linearGradient(
+            if (isDark) {
+                listOf(NovaPrimary.copy(alpha = 0.4f), NovaViolet.copy(alpha = 0.2f))
+            } else {
+                listOf(Color(0xFFB0C8FF), Color(0xFFD4DCFF))
+            }
         )
-    )
+    }
 
     Row(
         modifier = modifier
             .scale(scale)
-            .shadow(elevation = elevation, shape = shape, spotColor = if (isSelected) selectedColor.copy(alpha = 0.35f) else Color.Transparent)
+            .shadow(
+                elevation  = elevation,
+                shape      = shape,
+                spotColor  = if (isSelected) selectedColor.copy(alpha = 0.4f) else Color.Transparent
+            )
             .background(bgBrush, shape)
-            .border(1.2.dp, borderBrush, shape)
+            .border(1.dp, borderBrush, shape)
             .clip(shape)
             .then(
                 if (onClick != null) {
                     Modifier.clickable(
                         interactionSource = interactionSource,
-                        indication = null,
-                        onClick = onClick
+                        indication        = null,
+                        onClick           = onClick
                     )
                 } else Modifier
             )
-            .padding(horizontal = 14.dp, vertical = 8.dp),
+            .padding(horizontal = 16.dp, vertical = 9.dp),
         horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically,
-        content = content
+        verticalAlignment     = Alignment.CenterVertically,
+        content               = content
+    )
+}
+
+/**
+ * Neon Gradient button with glow effect.
+ */
+@Composable
+fun NovaButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    colors: List<Color> = listOf(NovaPrimary, NovaPrimaryDeep),
+    shape: Shape = RoundedCornerShape(16.dp),
+    content: @Composable RowScope.() -> Unit
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue   = if (isPressed) 0.95f else 1f,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label         = "nova-btn-scale"
+    )
+
+    Row(
+        modifier = modifier
+            .scale(scale)
+            .shadow(12.dp, shape, spotColor = colors.first().copy(alpha = 0.5f))
+            .background(Brush.horizontalGradient(colors), shape)
+            .clip(shape)
+            .clickable(
+                interactionSource = interactionSource,
+                indication        = null,
+                onClick           = onClick
+            )
+            .padding(horizontal = 24.dp, vertical = 14.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment     = Alignment.CenterVertically,
+        content               = content
     )
 }

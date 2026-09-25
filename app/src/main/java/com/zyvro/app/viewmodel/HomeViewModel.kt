@@ -133,6 +133,13 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         DownloadService.cancelDownload(getApplication(), downloadId)
     }
 
+    fun retryDownload(downloadId: Long) {
+        viewModelScope.launch {
+            repository.retryDownload(downloadId)
+            DownloadService.startDownload(getApplication(), downloadId)
+        }
+    }
+
     fun deleteDownload(downloadId: Long) {
         viewModelScope.launch {
             repository.deleteDownload(downloadId)

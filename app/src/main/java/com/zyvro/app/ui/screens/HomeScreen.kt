@@ -3,11 +3,14 @@ package com.zyvro.app.ui.screens
 import android.content.ClipDescription
 import android.content.ClipboardManager
 import android.content.Context
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.*
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -32,16 +35,19 @@ import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.Tune
-import com.zyvro.app.ui.theme.LocalAppDark
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
@@ -59,561 +65,232 @@ import com.zyvro.app.ui.components.DownloadItemCard
 import com.zyvro.app.ui.components.FormatSelectionSheet
 import com.zyvro.app.ui.components.LiquidGlassCard
 import com.zyvro.app.ui.components.LiquidGlassPill
+import com.zyvro.app.ui.components.NovaButton
 import com.zyvro.app.ui.components.VideoPreviewCard
 import com.zyvro.app.ui.components.batch.BatchDownloadModal
 import com.zyvro.app.ui.components.equalizer.EqualizerDialog
 import com.zyvro.app.ui.components.ambientLiquidBackground
 import com.zyvro.app.ui.components.liquidGlass
-import com.zyvro.app.ui.theme.AccentOrange
-import com.zyvro.app.ui.theme.FacebookBlue
-import com.zyvro.app.ui.theme.InstagramPink
-import com.zyvro.app.ui.theme.NovaAqua
-import com.zyvro.app.ui.theme.NovaAquaDeep
-import com.zyvro.app.ui.theme.NovaAquaSoft
-import com.zyvro.app.ui.theme.NovaInk
-import com.zyvro.app.ui.theme.PinterestRed
-import com.zyvro.app.ui.theme.RedditOrange
-import com.zyvro.app.ui.theme.SoundCloudOrange
-import com.zyvro.app.ui.theme.ThreadsDark
-import com.zyvro.app.ui.theme.TikTokCyan
-import com.zyvro.app.ui.theme.TwitchPurple
-import com.zyvro.app.ui.theme.TwitterBlue
-import com.zyvro.app.ui.theme.YouTubeRed
+import com.zyvro.app.ui.theme.*
 import com.zyvro.app.viewmodel.HomeUiState
 import com.zyvro.app.viewmodel.HomeViewModel
-import kotlinx.coroutines.launch
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ZYVRO HOME SCREEN v4.0 — Deep Space Aura
+// ═══════════════════════════════════════════════════════════════════════════
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
-    viewModel: HomeViewModel = viewModel(),
+    viewModel: HomeViewModel = viewModel(
+        factory = androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.getInstance(
+            LocalContext.current.applicationContext as android.app.Application
+        )
+    ),
     onNavigateToQueue: () -> Unit = {},
-    onNavigateToBrowser: (String) -> Unit = {}
+    onNavigateToBrowser: () -> Unit = {}
 ) {
-    val context = LocalContext.current
-    val isDark = LocalAppDark.current
-    val playerManager = remember { MediaPlayerManager.getInstance(context) }
-    val keyboardController = LocalSoftwareKeyboardController.current
-    val uiState by viewModel.uiState.collectAsState()
-    val urlInput by viewModel.urlInput.collectAsState()
+    val context         = LocalContext.current
+    val uiState         by viewModel.uiState.collectAsState()
+    val urlInput        by viewModel.urlInput.collectAsState()
     val recentDownloads by viewModel.recentDownloads.collectAsState(initial = emptyList())
+    val playerManager   = MediaPlayerManager.getInstance(context)
+    val isDark          = LocalAppDark.current
+    val keyboard        = LocalSoftwareKeyboardController.current
 
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var showBottomSheet by remember { mutableStateOf(false) }
-    var showBatchModal by remember { mutableStateOf(false) }
-    var showEqualizer by remember { mutableStateOf(false) }
-    val coroutineScope = rememberCoroutineScope()
+    var showBatchModal  by remember { mutableStateOf(false) }
+    var showEqualizer   by remember { mutableStateOf(false) }
+    val sheetState      = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    var clipboardDetectedUrl by remember { mutableStateOf<String?>(null) }
+    // Aurora orb pulse animation
+    val infiniteTransition = rememberInfiniteTransition(label = "aurora")
+    val orb1Scale by infiniteTransition.animateFloat(
+        initialValue  = 1f,
+        targetValue   = 1.15f,
+        animationSpec = infiniteRepeatable(tween(3000, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label         = "orb1"
+    )
+    val orb2Scale by infiniteTransition.animateFloat(
+        initialValue  = 1.1f,
+        targetValue   = 0.9f,
+        animationSpec = infiniteRepeatable(tween(4000, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label         = "orb2"
+    )
 
-    // Safe Clipboard Auto-Detect (protected from SecurityException on Android 10-15)
-    LaunchedEffect(Unit) {
-        runCatching {
-            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
-            if (clipboard != null && clipboard.hasPrimaryClip() && clipboard.primaryClipDescription?.hasMimeType(ClipDescription.MIMETYPE_TEXT_PLAIN) == true) {
-                val text = clipboard.primaryClip?.getItemAt(0)?.text?.toString()?.trim() ?: ""
-                val isMediaLink = text.startsWith("http://") || text.startsWith("https://") ||
-                        text.contains("youtu") || text.contains("instagram") || text.contains("facebook") ||
-                        text.contains("fb.watch") || text.contains("threads") || text.contains("pinterest") ||
-                        text.contains("pin.it") || text.contains("tiktok") || text.contains("twitter") || text.contains("x.com") || text.contains("reddit")
-                if (isMediaLink && text != urlInput) {
-                    clipboardDetectedUrl = text
+    Box(modifier = Modifier.fillMaxSize()) {
+
+        // ── Aurora Background ──────────────────────────────────────────
+        if (isDark) {
+            Box(
+                modifier = Modifier
+                    .size(280.dp)
+                    .scale(orb1Scale)
+                    .offset(x = (-60).dp, y = (-40).dp)
+                    .background(
+                        Brush.radialGradient(listOf(NovaPrimary.copy(alpha = 0.12f), Color.Transparent)),
+                        CircleShape
+                    )
+                    .blur(60.dp)
+            )
+            Box(
+                modifier = Modifier
+                    .size(240.dp)
+                    .scale(orb2Scale)
+                    .align(Alignment.TopEnd)
+                    .offset(x = 60.dp, y = 80.dp)
+                    .background(
+                        Brush.radialGradient(listOf(NovaViolet.copy(alpha = 0.10f), Color.Transparent)),
+                        CircleShape
+                    )
+                    .blur(50.dp)
+            )
+        }
+
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .ambientLiquidBackground(isDark)
+                .statusBarsPadding()
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+            contentPadding      = PaddingValues(top = 10.dp, bottom = 120.dp)
+        ) {
+
+            // ── Header ─────────────────────────────────────────────────
+            item {
+                ZyvroHeader(
+                    isDark         = isDark,
+                    onEqualizer    = { showEqualizer = true },
+                    onBatch        = {
+                        if (uiState is HomeUiState.Success) showBatchModal = true
+                        else if (urlInput.isNotBlank()) viewModel.parseUrl(urlInput)
+                    }
+                )
+            }
+
+            // ── URL Input ──────────────────────────────────────────────
+            item {
+                AuraUrlInput(
+                    value    = urlInput,
+                    isDark   = isDark,
+                    onChange = { viewModel.onUrlChanged(it) },
+                    onSearch = {
+                        keyboard?.hide()
+                        val raw = urlInput.trim()
+                        if (raw.isNotBlank()) viewModel.parseUrl(raw)
+                    },
+                    onPaste  = {
+                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                        val text = clipboard?.primaryClip
+                            ?.takeIf { it.description.hasMimeType(ClipDescription.MIMETYPE_TEXT_PLAIN) }
+                            ?.getItemAt(0)?.coerceToText(context)?.toString() ?: ""
+                        if (text.isNotBlank()) {
+                            viewModel.onUrlChanged(text)
+                            keyboard?.hide()
+                            viewModel.parseUrl(text)
+                        }
+                    }
+                )
+            }
+
+            // ── Platform Chips ─────────────────────────────────────────
+            item {
+                PlatformChipsRow(
+                    isDark   = isDark,
+                    onSelect = { url ->
+                        viewModel.onUrlChanged(url)
+                        onNavigateToBrowser()
+                    }
+                )
+            }
+
+            // ── URL State: Loading / Success / Error ──────────────────
+            item {
+                AnimatedContent(
+                    targetState  = uiState,
+                    transitionSpec = {
+                        (fadeIn(tween(260)) + slideInVertically(tween(260)) { it / 6 })
+                            .togetherWith(fadeOut(tween(160)))
+                    },
+                    label = "url-state"
+                ) { state ->
+                    when (state) {
+                        is HomeUiState.Loading -> AuraLoadingCard(isDark)
+                        is HomeUiState.Success -> VideoPreviewCard(
+                            videoInfo         = state.videoInfo,
+                            onConfigureDownload = { showBottomSheet = true }
+                        )
+                        is HomeUiState.Error   -> AuraErrorCard(
+                            message  = state.message,
+                            isDark   = isDark,
+                            onRetry  = { if (urlInput.isNotBlank()) viewModel.parseUrl(urlInput) },
+                            onCopy   = {
+                                runCatching {
+                                    val cb = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                                    cb?.setPrimaryClip(android.content.ClipData.newPlainText("url", urlInput))
+                                }
+                            }
+                        )
+                        HomeUiState.Idle -> {}
+                    }
                 }
             }
-        }
-    }
 
-    val platforms = listOf(
-        Triple("YouTube", YouTubeRed, "https://m.youtube.com"),
-        Triple("Instagram", InstagramPink, "https://www.instagram.com"),
-        Triple("Facebook", FacebookBlue, "https://m.facebook.com"),
-        Triple("Threads", if (isDark) Color.White else ThreadsDark, "https://www.threads.net"),
-        Triple("Pinterest", PinterestRed, "https://www.pinterest.com"),
-        Triple("TikTok", TikTokCyan, "https://www.tiktok.com"),
-        Triple("X / Twitter", TwitterBlue, "https://x.com"),
-        Triple("SoundCloud", SoundCloudOrange, "https://m.soundcloud.com"),
-        Triple("Twitch", TwitchPurple, "https://m.twitch.tv"),
-        Triple("Reddit", RedditOrange, "https://www.reddit.com")
-    )
-    // Minimal hub: 5 curated first, rest behind "More".
-    var showAllPlatforms by remember { mutableStateOf(false) }
-    val visiblePlatforms = if (showAllPlatforms) platforms else platforms.take(5)
-
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .ambientLiquidBackground()
-            .statusBarsPadding()
-            .padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-        contentPadding = PaddingValues(top = 12.dp, bottom = 110.dp)
-    ) {
-        // Zyvro header card with app icon
-        item {
-            LiquidGlassCard(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
-                elevation = 4.dp
-            ) {
-                Column(modifier = Modifier.padding(18.dp)) {
+            // ── Recent Downloads ───────────────────────────────────────
+            if (recentDownloads.isNotEmpty()) {
+                item {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier              = Modifier.fillMaxWidth().padding(top = 4.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment     = Alignment.CenterVertically
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Box(
                                 modifier = Modifier
-                                    .size(52.dp)
-                                    .shadow(10.dp, RoundedCornerShape(15.dp), spotColor = NovaAqua)
-                                    .clip(RoundedCornerShape(15.dp))
-                                    .border(
-                                        1.dp,
-                                        Brush.linearGradient(listOf(NovaAqua.copy(alpha = 0.6f), Color.Transparent)),
-                                        RoundedCornerShape(15.dp)
-                                    ),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Image(
-                                    painter = painterResource(id = R.drawable.app_logo),
-                                    contentDescription = "Zyvro Logo",
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(14.dp))
-                            Column {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(
-                                        text = "Zyvro",
-                                        style = MaterialTheme.typography.headlineSmall,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurface
+                                    .size(3.dp, 18.dp)
+                                    .background(
+                                        Brush.verticalGradient(listOf(NovaPrimary, NovaViolet)),
+                                        RoundedCornerShape(2.dp)
                                     )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(CircleShape)
-                                            .background(
-                                                Brush.horizontalGradient(
-                                                    listOf(NovaAqua, NovaAquaDeep)
-                                                )
-                                            )
-                                            .padding(horizontal = 7.dp, vertical = 2.dp)
-                                    ) {
-                                        Text(
-                                            text = "PRO",
-                                            color = NovaInk,
-                                            fontSize = 9.sp,
-                                            fontWeight = FontWeight.ExtraBold
-                                        )
-                                    }
-                                }
-                                Text(
-                                    text = "Fast · Private · Modern",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontWeight = FontWeight.Medium
-                                )
-                            }
-                        }
-
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            IconButton(
-                                onClick = { showEqualizer = true },
-                                modifier = Modifier
-                                    .size(38.dp)
-                                    .liquidGlass(shape = CircleShape, elevation = 4.dp)
-                            ) {
-                                Icon(
-                                    Icons.Rounded.Tune,
-                                    contentDescription = "Audio Studio FX",
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                            IconButton(
-                                onClick = {
-                                    if (uiState is HomeUiState.Success) {
-                                        showBatchModal = true
-                                    } else if (urlInput.isNotBlank()) {
-                                        viewModel.parseUrl(urlInput)
-                                    }
-                                },
-                                modifier = Modifier
-                                    .size(38.dp)
-                                    .liquidGlass(shape = CircleShape, elevation = 4.dp)
-                            ) {
-                                Icon(
-                                    Icons.Rounded.PlaylistPlay,
-                                    contentDescription = "Batch Downloader",
-                                    tint = MaterialTheme.colorScheme.secondary,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    // Feature highlight chips
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        val chipBg = if (isDark) Color(0xFF142C3F) else Color(0xFFE0F5F6)
-                        val chipTextColor = if (isDark) NovaAqua else NovaAquaDeep
-
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(chipBg)
-                                .padding(vertical = 6.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("Turbo Engine", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = chipTextColor)
-                        }
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(chipBg)
-                                .padding(vertical = 6.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("HD Quality", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = chipTextColor)
-                        }
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(chipBg)
-                                .padding(vertical = 6.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("100% Private", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = chipTextColor)
-                        }
-                    }
-                }
-            }
-        }
-
-        // URL input card
-        item {
-            LiquidGlassCard(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
-                elevation = 4.dp
-            ) {
-                Column(modifier = Modifier.padding(18.dp)) {
-                    Text(
-                        "Download Any Video or Audio",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    OutlinedTextField(
-                        value = urlInput,
-                        onValueChange = { viewModel.onUrlChanged(it) },
-                        placeholder = { Text("Paste YouTube, Instagram, TikTok link...") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        shape = RoundedCornerShape(18.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = MaterialTheme.colorScheme.primary,
-                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
-                        ),
-                        trailingIcon = {
-                            if (urlInput.isNotBlank()) {
-                                IconButton(
-                                    onClick = {
-                                        keyboardController?.hide()
-                                        viewModel.parseUrl(urlInput)
-                                    }
-                                ) {
-                                    Icon(
-                                        Icons.Rounded.Download,
-                                        contentDescription = "Extract & Download",
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
-                                }
-                            } else {
-                                Box(
-                                    modifier = Modifier
-                                        .padding(end = 8.dp)
-                                        .clip(RoundedCornerShape(10.dp))
-                                        .background(if (isDark) Color(0xFF1B364D) else Color(0xFFE0F5F6))
-                                        .clickable {
-                                            runCatching {
-                                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
-                                                val clip = clipboard?.primaryClip?.getItemAt(0)?.text?.toString()?.trim() ?: ""
-                                                if (clip.isNotBlank()) {
-                                                    viewModel.onUrlChanged(clip)
-                                                }
-                                            }
-                                        }
-                                        .padding(horizontal = 10.dp, vertical = 5.dp)
-                                ) {
-                                    Text(
-                                        "PASTE",
-                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp),
-                                        fontWeight = FontWeight.ExtraBold,
-                                        color = if (isDark) NovaAqua else NovaAquaDeep
-                                    )
-                                }
-                            }
-                        },
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
-                        keyboardActions = KeyboardActions(
-                            onGo = {
-                                keyboardController?.hide()
-                                if (urlInput.isNotBlank()) {
-                                    viewModel.parseUrl(urlInput)
-                                }
-                            }
-                        )
-                    )
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // Fetch media primary CTA (iOS blue action button)
-                    Button(
-                        onClick = {
-                            keyboardController?.hide()
-                            if (urlInput.isNotBlank()) {
-                                viewModel.parseUrl(urlInput)
-                            }
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(50.dp),
-                        shape = RoundedCornerShape(14.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = NovaAquaDeep,
-                            contentColor = Color.White
-                        )
-                    ) {
-                        Icon(Icons.Rounded.Search, contentDescription = null, modifier = Modifier.size(20.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            "Fetch Media Analysis",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-
-                    // Clipboard Detect Floating Glass Chip
-                    if (!clipboardDetectedUrl.isNullOrBlank() && urlInput.isBlank()) {
-                        Spacer(modifier = Modifier.height(10.dp))
-                        LiquidGlassPill(
-                            onClick = {
-                                clipboardDetectedUrl?.let {
-                                    viewModel.onUrlChanged(it)
-                                    viewModel.parseUrl(it)
-                                    clipboardDetectedUrl = null
-                                }
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Icon(
-                                Icons.Rounded.ContentPaste,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(16.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "Auto-Paste: ${clipboardDetectedUrl?.take(36)}...",
-                                style = MaterialTheme.typography.labelSmall,
+                                text       = "Recent Activity",
+                                style      = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                color      = MaterialTheme.colorScheme.onBackground
+                            )
+                        }
+                        TextButton(onClick = onNavigateToQueue) {
+                            Text(
+                                "View All",
+                                fontWeight = FontWeight.Bold,
+                                color      = NovaPrimary
                             )
                         }
                     }
                 }
-            }
-        }
 
-        // Supported Platforms — minimal hub (5 curated + More)
-        item {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                visiblePlatforms.forEach { (name, color, siteUrl) ->
-                    LiquidGlassCard(
-                        shape = RoundedCornerShape(18.dp),
-                        elevation = 2.dp,
-                        onClick = { onNavigateToBrowser(siteUrl) }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(10.dp)
-                                    .clip(CircleShape)
-                                    .background(color)
-                                    .shadow(4.dp, CircleShape, ambientColor = color)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(name, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                        }
-                    }
-                }
-                // More / Less toggle keeps Home clean on small screens.
-                LiquidGlassPill(onClick = { showAllPlatforms = !showAllPlatforms }) {
-                    Text(
-                        if (showAllPlatforms) "Less" else "+${platforms.size - visiblePlatforms.size} More",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 12.sp
+                items(recentDownloads.take(5), key = { it.id }) { item ->
+                    DownloadItemCard(
+                        download = item,
+                        onCancel = { },
+                        onDelete = { },
+                        onPlay   = { playerManager.playMedia(item) }
                     )
                 }
-            }
-        }
-
-        // Extraction Status / Result
-        item {
-            when (val state = uiState) {
-                is HomeUiState.Loading -> {
-                    LiquidGlassCard(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(24.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(20.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(24.dp),
-                                strokeWidth = 2.5.dp,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            Spacer(modifier = Modifier.width(14.dp))
-                            Text(
-                                text = "Analyzing stream with yt-dlp...",
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-                    }
-                }
-                is HomeUiState.Success -> {
-                    VideoPreviewCard(
-                        videoInfo = state.videoInfo,
-                        onConfigureDownload = { showBottomSheet = true }
-                    )
-                }
-                is HomeUiState.Error -> {
-                    LiquidGlassCard(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(22.dp),
-                        tintColor = MaterialTheme.colorScheme.error
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text(
-                                text = state.message,
-                                color = MaterialTheme.colorScheme.error,
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            // IG/FB hint: login-wall vs bad link me farq dikhao.
-                            val hint = when {
-                                state.message.contains("login", ignoreCase = true) ||
-                                        state.message.contains("cookies", ignoreCase = true) ->
-                                    "Ye link login maang raha hai. Settings me cookies.txt import karo, phir retry dabao."
-                                state.message.contains("rate", ignoreCase = true) ->
-                                    "Platform ne request limit lagayi hai. 1-2 min ruk kar retry karo."
-                                else ->
-                                    "Link public hona chahiye. Private/deleted post download nahi hoga."
-                            }
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Text(
-                                text = hint,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(modifier = Modifier.height(10.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Button(
-                                    onClick = {
-                                        if (urlInput.isNotBlank()) viewModel.parseUrl(urlInput)
-                                    },
-                                    modifier = Modifier.weight(1f).height(44.dp),
-                                    shape = RoundedCornerShape(12.dp)
-                                ) {
-                                    Text("Retry", fontWeight = FontWeight.Bold)
-                                }
-                                OutlinedButton(
-                                    onClick = {
-                                        runCatching {
-                                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
-                                            clipboard?.setPrimaryClip(
-                                                android.content.ClipData.newPlainText("zyvro-url", urlInput)
-                                            )
-                                        }
-                                    },
-                                    modifier = Modifier.weight(1f).height(44.dp),
-                                    shape = RoundedCornerShape(12.dp)
-                                ) {
-                                    Text("Copy link", fontWeight = FontWeight.SemiBold)
-                                }
-                            }
-                        }
-                    }
-                }
-                HomeUiState.Idle -> { }
-            }
-        }
-
-        // Recent Downloads Section Header
-        if (recentDownloads.isNotEmpty()) {
-            item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Recent Activity",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    TextButton(onClick = onNavigateToQueue) {
-                        Text("View Queue", fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-
-            items(recentDownloads.take(5), key = { it.id }) { item ->
-                DownloadItemCard(
-                    download = item,
-                    onCancel = { },
-                    onDelete = { },
-                    onPlay = { playerManager.playMedia(item) }
-                )
             }
         }
     }
 
-    // Format Selection Modal Bottom Sheet
+    // Format Selection Sheet
     if (showBottomSheet && uiState is HomeUiState.Success) {
         val videoInfo = (uiState as HomeUiState.Success).videoInfo
         FormatSelectionSheet(
             sheetState = sheetState,
-            videoInfo = videoInfo,
-            onDismiss = { showBottomSheet = false },
+            videoInfo  = videoInfo,
+            onDismiss  = { showBottomSheet = false },
             onStartDownload = { formatId, mediaType, audioExt ->
                 viewModel.startDownload(videoInfo, formatId, mediaType, audioExt, autoStart = true)
                 showBottomSheet = false
@@ -627,30 +304,414 @@ fun HomeScreen(
         )
     }
 
-    // Batch Download Modal
+    // Batch Modal
     if (showBatchModal && uiState is HomeUiState.Success) {
         val info = (uiState as HomeUiState.Success).videoInfo
         BatchDownloadModal(
             playlistTitle = info.title,
-            itemsList = listOf(info),
-            onDismiss = { showBatchModal = false },
-            onBatchDownload = { selectedItems, formatId, mediaType, audioExt ->
-                selectedItems.forEach { item ->
-                    viewModel.startDownload(
-                        videoInfo = item,
-                        formatId = formatId,
-                        mediaType = mediaType,
-                        audioExt = audioExt
-                    )
-                }
+            itemsList     = listOf(info),
+            onDismiss     = { showBatchModal = false },
+            onBatchDownload = { items, formatId, mediaType, audioExt ->
+                items.forEach { item -> viewModel.startDownload(item, formatId, mediaType, audioExt) }
                 showBatchModal = false
                 onNavigateToQueue()
             }
         )
     }
 
-    // Audio Studio Equalizer Dialog
     if (showEqualizer) {
         EqualizerDialog(onDismiss = { showEqualizer = false })
+    }
+}
+
+// ── Subcomponents ──────────────────────────────────────────────────────────
+
+@Composable
+private fun ZyvroHeader(
+    isDark: Boolean,
+    onEqualizer: () -> Unit,
+    onBatch: () -> Unit
+) {
+    val borderBrush = Brush.linearGradient(
+        listOf(NovaPrimary.copy(alpha = 0.5f), NovaViolet.copy(alpha = 0.3f))
+    )
+    LiquidGlassCard(
+        modifier  = Modifier.fillMaxWidth(),
+        shape     = RoundedCornerShape(22.dp),
+        elevation = 6.dp
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier              = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment     = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // Logo with glow
+                    Box(
+                        modifier = Modifier
+                            .size(50.dp)
+                            .shadow(12.dp, RoundedCornerShape(14.dp), spotColor = NovaPrimary.copy(alpha = 0.5f))
+                            .clip(RoundedCornerShape(14.dp))
+                            .border(1.dp, borderBrush, RoundedCornerShape(14.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Image(
+                            painter           = painterResource(id = R.drawable.app_logo),
+                            contentDescription = "Zyvro",
+                            modifier          = Modifier.fillMaxSize()
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(
+                                text       = "Zyvro",
+                                style      = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Black,
+                                color      = MaterialTheme.colorScheme.onSurface
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(Brush.horizontalGradient(listOf(NovaPrimary, NovaViolet)))
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Text("v4", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Black)
+                            }
+                        }
+                        Text(
+                            text  = "Download · Convert · Play",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    HeaderIconButton(Icons.Rounded.Tune, "Equalizer", NovaPrimary, onEqualizer)
+                    HeaderIconButton(Icons.Rounded.PlaylistAdd, "Batch", NovaViolet, onBatch)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Feature chips
+            Row(
+                modifier              = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                listOf(
+                    Triple(Icons.Filled.Bolt,        "Turbo",   GradientCyan),
+                    Triple(Icons.Filled.Hd,           "4K/8K",   GradientViolet),
+                    Triple(Icons.Filled.AutoAwesome,  "Private", GradientGreen)
+                ).forEach { (icon, label, gradient) ->
+                    FeatureChip(icon, label, gradient, Modifier.weight(1f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HeaderIconButton(icon: ImageVector, desc: String, tint: Color, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(38.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(tint.copy(alpha = 0.12f))
+            .border(0.5.dp, tint.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(icon, desc, tint = tint, modifier = Modifier.size(18.dp))
+    }
+}
+
+@Composable
+private fun FeatureChip(
+    icon: ImageVector,
+    label: String,
+    gradient: List<Color>,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(Brush.horizontalGradient(gradient.map { it.copy(alpha = 0.15f) }))
+            .border(0.5.dp, gradient.first().copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+            .padding(vertical = 7.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Row(
+            verticalAlignment     = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Icon(icon, null, tint = gradient.first(), modifier = Modifier.size(12.dp))
+            Spacer(Modifier.width(4.dp))
+            Text(label, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = gradient.first())
+        }
+    }
+}
+
+@Composable
+private fun AuraUrlInput(
+    value: String,
+    isDark: Boolean,
+    onChange: (String) -> Unit,
+    onSearch: () -> Unit,
+    onPaste: () -> Unit
+) {
+    val glowAlpha by animateFloatAsState(
+        targetValue   = if (value.isNotBlank()) 0.5f else 0.15f,
+        animationSpec = tween(300),
+        label         = "url-glow"
+    )
+    val borderBrush = Brush.horizontalGradient(
+        listOf(NovaPrimary.copy(alpha = glowAlpha), NovaViolet.copy(alpha = glowAlpha * 0.7f))
+    )
+    val bgColor = if (isDark) SpaceCard.copy(alpha = 0.96f) else Color.White.copy(alpha = 0.98f)
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        // Input field
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .shadow(if (value.isNotBlank()) 12.dp else 4.dp, RoundedCornerShape(18.dp),
+                    spotColor = NovaPrimary.copy(alpha = glowAlpha * 0.4f))
+                .background(bgColor, RoundedCornerShape(18.dp))
+                .border(1.dp, borderBrush, RoundedCornerShape(18.dp))
+        ) {
+            Row(
+                modifier          = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    Icons.Rounded.Link,
+                    "URL",
+                    tint     = NovaPrimary.copy(alpha = 0.8f),
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(Modifier.width(10.dp))
+                OutlinedTextField(
+                    value         = value,
+                    onValueChange = onChange,
+                    modifier      = Modifier.weight(1f),
+                    placeholder   = {
+                        Text(
+                            "Paste any video / audio URL...",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    },
+                    singleLine    = true,
+                    colors        = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor   = Color.Transparent,
+                        unfocusedBorderColor = Color.Transparent,
+                        focusedContainerColor   = Color.Transparent,
+                        unfocusedContainerColor = Color.Transparent
+                    ),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(onSearch = { onSearch() }),
+                    textStyle      = MaterialTheme.typography.bodyMedium.copy(
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                )
+                if (value.isNotBlank()) {
+                    IconButton(onClick = { onChange("") }, modifier = Modifier.size(32.dp)) {
+                        Icon(Icons.Rounded.Close, "Clear", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
+                    }
+                }
+            }
+        }
+
+        // Action buttons row
+        Row(
+            modifier              = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // Paste button
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(48.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(if (isDark) SpaceCardHigh else Color(0xFFF0F4FF))
+                    .border(0.5.dp, NovaPrimary.copy(alpha = 0.3f), RoundedCornerShape(14.dp))
+                    .clickable(onClick = onPaste),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Icon(Icons.Filled.ContentPaste, "Paste", tint = NovaPrimary, modifier = Modifier.size(16.dp))
+                    Text("Paste", fontWeight = FontWeight.SemiBold, color = NovaPrimary, fontSize = 13.sp)
+                }
+            }
+
+            // Analyze / Download button
+            NovaButton(
+                onClick = onSearch,
+                modifier = Modifier.weight(2f).height(48.dp),
+                colors   = listOf(NovaPrimary, NovaPrimaryDeep),
+                shape    = RoundedCornerShape(14.dp)
+            ) {
+                Icon(Icons.Rounded.Search, "Analyze", tint = Color(0xFF001824), modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    if (value.isBlank()) "Analyze URL" else "Fetch Info",
+                    fontWeight = FontWeight.Bold,
+                    color      = Color(0xFF001824),
+                    fontSize   = 14.sp
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlatformChipsRow(
+    isDark: Boolean,
+    onSelect: (String) -> Unit
+) {
+    val platforms = listOf(
+        PlatformChip("YouTube",    YouTubeRed,      "https://youtube.com"),
+        PlatformChip("Instagram",  InstagramPink,   "https://instagram.com"),
+        PlatformChip("TikTok",     TikTokCyan,      "https://tiktok.com"),
+        PlatformChip("Twitter",    TwitterBlue,     "https://twitter.com"),
+        PlatformChip("Facebook",   FacebookBlue,    "https://facebook.com"),
+        PlatformChip("SoundCloud", SoundCloudOrange,"https://soundcloud.com"),
+        PlatformChip("Twitch",     TwitchPurple,    "https://twitch.tv"),
+        PlatformChip("Reddit",     RedditOrange,    "https://reddit.com"),
+        PlatformChip("Pinterest",  PinterestRed,    "https://pinterest.com"),
+    )
+
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(
+            "Supported Platforms",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontWeight = FontWeight.SemiBold
+        )
+        Row(
+            modifier              = Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            platforms.forEach { p ->
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(p.color.copy(alpha = if (isDark) 0.15f else 0.08f))
+                        .border(0.5.dp, p.color.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+                        .clickable { onSelect(p.url) }
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Text(p.name, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = p.color)
+                }
+            }
+        }
+    }
+}
+
+private data class PlatformChip(val name: String, val color: Color, val url: String)
+
+@Composable
+private fun AuraLoadingCard(isDark: Boolean) {
+    val infiniteTransition = rememberInfiniteTransition(label = "loading")
+    val shimmer by infiniteTransition.animateFloat(
+        initialValue  = 0.3f,
+        targetValue   = 0.9f,
+        animationSpec = infiniteRepeatable(tween(800), RepeatMode.Reverse),
+        label         = "shimmer"
+    )
+    LiquidGlassCard(
+        modifier  = Modifier.fillMaxWidth(),
+        shape     = RoundedCornerShape(22.dp),
+        tintColor = NovaPrimary
+    ) {
+        Row(
+            modifier          = Modifier.fillMaxWidth().padding(20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            CircularProgressIndicator(
+                modifier  = Modifier.size(24.dp),
+                strokeWidth = 2.5.dp,
+                color       = NovaPrimary.copy(alpha = shimmer)
+            )
+            Spacer(Modifier.width(14.dp))
+            Text(
+                "Analyzing stream...",
+                style      = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                color      = MaterialTheme.colorScheme.onSurface
+            )
+        }
+    }
+}
+
+@Composable
+private fun AuraErrorCard(
+    message: String,
+    isDark: Boolean,
+    onRetry: () -> Unit,
+    onCopy: () -> Unit
+) {
+    val hint = when {
+        message.contains("login", ignoreCase = true) ||
+        message.contains("cookies", ignoreCase = true) ->
+            "This link requires login. Import cookies.txt in Settings, then retry."
+        message.contains("rate", ignoreCase = true) ->
+            "Platform rate-limited. Wait 1–2 min then retry."
+        message.contains("unavailable", ignoreCase = true) ->
+            "Media unavailable. It may be private or region-blocked."
+        else ->
+            "Link must be public. Private/deleted content cannot be downloaded."
+    }
+
+    LiquidGlassCard(
+        modifier  = Modifier.fillMaxWidth(),
+        shape     = RoundedCornerShape(22.dp),
+        tintColor = AccentRed
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Rounded.Error, "Error", tint = AccentRed, modifier = Modifier.size(18.dp))
+                Text(
+                    "Download Failed",
+                    fontWeight = FontWeight.Bold,
+                    color = AccentRed,
+                    style = MaterialTheme.typography.titleSmall
+                )
+            }
+            Text(
+                message,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                hint,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = onRetry,
+                    modifier = Modifier.weight(1f),
+                    shape    = RoundedCornerShape(12.dp),
+                    colors   = ButtonDefaults.buttonColors(containerColor = NovaPrimary, contentColor = Color(0xFF001824))
+                ) {
+                    Text("Retry", fontWeight = FontWeight.Bold)
+                }
+                OutlinedButton(
+                    onClick = onCopy,
+                    modifier = Modifier.weight(1f),
+                    shape    = RoundedCornerShape(12.dp),
+                    border   = ButtonDefaults.outlinedButtonBorder.copy(width = 0.5.dp)
+                ) {
+                    Text("Copy Link", fontWeight = FontWeight.SemiBold)
+                }
+            }
+        }
     }
 }

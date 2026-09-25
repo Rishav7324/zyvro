@@ -48,6 +48,10 @@ class DownloadRepository(
         downloadDao.markFailed(id = id, error = error)
     }
 
+    suspend fun retryDownload(id: Long) {
+        downloadDao.resetForRetry(id)
+    }
+
     suspend fun deleteDownload(id: Long) {
         downloadDao.deleteById(id)
     }

@@ -30,10 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.zyvro.app.ui.components.ambientLiquidBackground
-import com.zyvro.app.ui.theme.NovaAqua
-import com.zyvro.app.ui.theme.NovaAquaDeep
-import com.zyvro.app.ui.theme.NovaInk
-import com.zyvro.app.ui.theme.ZyvroAccents
+import com.zyvro.app.ui.theme.*
 import com.zyvro.app.viewmodel.SettingsViewModel
 import com.zyvro.app.viewmodel.UpdateState
 import kotlinx.coroutines.launch
@@ -118,7 +115,7 @@ fun SettingsScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .ambientLiquidBackground()
+            .ambientLiquidBackground(LocalAppDark.current)
             .statusBarsPadding()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp)
@@ -471,7 +468,7 @@ fun SettingsScreen(
 
         Spacer(Modifier.height(16.dp))
         Text(
-            text = "Zyvro · v3.1.1",
+            text = "Zyvro · v4.0.0 (Deep Space Aura)",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
             modifier = Modifier.align(Alignment.CenterHorizontally)
@@ -487,20 +484,25 @@ private fun IOSSection(
     footer: String? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    val isDark = LocalAppDark.current
     if (header != null) {
         Text(
             text = header,
             style = MaterialTheme.typography.labelSmall.copy(fontSize = 12.sp),
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontWeight = FontWeight.Bold,
+            color = if (isDark) NovaPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(start = 16.dp, bottom = 6.dp)
         )
     }
     Surface(
-        shape = RoundedCornerShape(14.dp),
-        color = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(18.dp),
+        color = if (isDark) SpaceCard else Color.White,
+        border = androidx.compose.foundation.BorderStroke(
+            0.6.dp,
+            if (isDark) SpaceBorder else Color(0xFFD4E0F0)
+        ),
         tonalElevation = 0.dp,
-        shadowElevation = 0.dp,
+        shadowElevation = if (isDark) 0.dp else 2.dp,
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(content = content)
@@ -520,23 +522,26 @@ private fun IOSSection(
 /** iOS hairline divider, indented past the row icon like UITableView. */
 @Composable
 private fun IOSDivider(startIndent: Dp = 16.dp) {
+    val isDark = LocalAppDark.current
     HorizontalDivider(
         thickness = 0.5.dp,
-        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+        color = if (isDark) SpaceBorder else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
         modifier = Modifier.padding(start = startIndent)
     )
 }
 
 @Composable
 private fun IOSRowIcon(icon: ImageVector) {
+    val isDark = LocalAppDark.current
     Box(
         modifier = Modifier
-            .size(30.dp)
-            .clip(RoundedCornerShape(7.dp))
-            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)),
+            .size(32.dp)
+            .clip(RoundedCornerShape(9.dp))
+            .background(if (isDark) SpaceCardHigh else NovaPrimary.copy(alpha = 0.12f))
+            .border(0.5.dp, NovaPrimary.copy(alpha = 0.35f), RoundedCornerShape(9.dp)),
         contentAlignment = Alignment.Center
     ) {
-        Icon(icon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(17.dp))
+        Icon(icon, null, tint = NovaPrimary, modifier = Modifier.size(17.dp))
     }
 }
 

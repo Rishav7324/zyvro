@@ -57,6 +57,9 @@ interface DownloadDao {
     @Query("DELETE FROM downloads WHERE id = :id")
     suspend fun deleteById(id: Long)
 
+    @Query("UPDATE downloads SET status = 'QUEUED', progress = 0, speed = '', eta = '', downloadedBytes = 0, errorMessage = NULL WHERE id = :id")
+    suspend fun resetForRetry(id: Long)
+
     @Query("UPDATE downloads SET formatNote = :note WHERE id = :id")
     suspend fun updateFormatNote(id: Long, note: String)
 

@@ -222,31 +222,11 @@ object YtDlpEngine {
         )
     }
 
-    private fun isLoginWall(msg: String): Boolean =
-        msg.contains("login", ignoreCase = true) ||
-                msg.contains("log in", ignoreCase = true) ||
-                msg.contains("cookies", ignoreCase = true) ||
-                msg.contains("private", ignoreCase = true) ||
-                msg.contains("rate-limit", ignoreCase = true) ||
-                msg.contains("redirect", ignoreCase = true)
+    private fun isLoginWall(msg: String): Boolean = DownloadErrors.isLoginWall(msg)
 
     private fun mapToFriendlyError(cause: Throwable?, hasCookies: Boolean): Throwable {
         val raw = cause?.message.orEmpty()
-        val lower = raw.lowercase()
-        return when {
-            lower.contains("login") || lower.contains("log in") || lower.contains("cookies") -> {
-                if (hasCookies) Exception("LOGIN_REQUIRED: Platform still asks for login even with cookies. Link private/deleted ho sakta hai, ya cookies expire ho gaye. Fresh cookies.txt import karo.")
-                else Exception("LOGIN_REQUIRED: Ye post login maang raha hai (private/age-gated). Settings me cookies.txt import karo, phir retry karo. Detail: ${raw.take(220)}")
-            }
-            lower.contains("rate-limit") || lower.contains("too many requests") || lower.contains("429") ->
-                Exception("RATE_LIMITED: Platform ne request limit lagayi hai. 1-2 min ruk kar retry karo. Detail: ${raw.take(220)}")
-            lower.contains("unsupported url") || lower.contains("no video") || lower.contains("not available") ->
-                Exception("UNSUPPORTED: Ye link public video/photo nahi lag raha (deleted/private ya wrong URL). Detail: ${raw.take(220)}")
-            lower.contains("network") || lower.contains("timeout") || lower.contains("unknownhost") || lower.contains("unable to resolve") ->
-                Exception("NETWORK: Internet slow/unstable hai. Wi-Fi check karke retry karo. Detail: ${raw.take(220)}")
-            raw.isNotBlank() -> Exception("FETCH_FAILED: $raw".take(400))
-            else -> Exception("FETCH_FAILED: Could not read this media link. URL verify karke retry karo.")
-        }
+        return Exception(DownloadErrors.friendlyMessage(raw, hasCookies), cause)
     }
 
     private fun mapFormats(info: YtdlVideoInfo): List<DownloadFormat> {
@@ -304,14 +284,26 @@ object YtDlpEngine {
         runCatching {
             ensureInitialized(context).getOrThrow()
             val validDir = outputDir.takeIf { it.exists() || it.mkdirs() } ?: context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: context.filesDir
-            val normalized = normalizeUrl(url)
-            val isInstagram = normalized.contains("instagram.com") || normalized.contains("instagr.am")
-            val isMeta = isInstagram ||
+            val normalized    = normalizeUrl(url)
+            val isInstagram   = normalized.contains("instagram.com") || normalized.contains("instagr.am")
+            val isMeta        = isInstagram ||
                     normalized.contains("facebook.com") ||
                     normalized.contains("fb.watch") ||
                     normalized.contains("threads.net") ||
                     normalized.contains("pinterest.com") ||
                     normalized.contains("pin.it")
+            // Platforms with combined-only streams (no DASH merge) — add fallback selectors
+            val isCombinedOnly = isMeta ||
+                    normalized.contains("tiktok.com")       ||
+                    normalized.contains("twitter.com")      || normalized.contains("x.com")  ||
+                    normalized.contains("reddit.com")       || normalized.contains("redd.it") ||
+                    normalized.contains("soundcloud.com")   ||
+                    normalized.contains("bilibili.com")     ||
+                    normalized.contains("vimeo.com")        ||
+                    normalized.contains("dailymotion.com")
+            val isYouTube     = normalized.contains("youtube.com") || normalized.contains("youtu.be")
+            val isTikTok      = normalized.contains("tiktok.com")
+            val isTwitch      = normalized.contains("twitch.tv")
 
             val request = YoutubeDLRequest(normalized).apply {
                 addOption("-o", "${validDir.absolutePath}/%(title).180B [%(id)s].%(ext)s")
@@ -322,13 +314,20 @@ object YtDlpEngine {
                 addOption("--no-check-certificate")
                 addOption("--socket-timeout", "30")
                 addOption("--retries", "5")
-                addOption("--fragment-retries", "5")
-                // Meta gets the mobile UA + referer (same anti-302 fix as fetch);
-                // everything else keeps the desktop UA for max quality.
-                addOption("--user-agent", if (isMeta) META_MOBILE_USER_AGENT else DEFAULT_USER_AGENT)
+                addOption("--fragment-retries", "8")
+                // Platform-aware User-Agent routing:
+                // Meta needs mobile Safari; TikTok needs mobile; YouTube gets desktop Chrome
+                val ua = when {
+                    isMeta   -> META_MOBILE_USER_AGENT
+                    isTikTok -> "com.zhiliaoapp.musically/2022600030 (Linux; U; Android 12; en_US; Pixel 5; Build/SP2A.220405.004; Cronet/58.0.2991.0)"
+                    else     -> DEFAULT_USER_AGENT
+                }
+                addOption("--user-agent", ua)
                 refererFor(normalized)?.let { addOption("--referer", it) }
-                if (isMeta) addOption("--geo-bypass")
+                // Geo-bypass for restricted regions
+                if (isMeta || isTikTok || isCombinedOnly) addOption("--geo-bypass")
             }
+
 
             if (speedLimit.isNotBlank() && speedLimit != "0" && !speedLimit.equals("Unlimited", ignoreCase = true)) {
                 if (useAria2 && isAria2Initialized && !isMeta) {
@@ -345,22 +344,63 @@ object YtDlpEngine {
             }
 
             if (mediaType == MediaType.AUDIO) {
-                request.addOption("-f", "ba/b")
+                // Audio-only download: prefer best audio, fallback to combined, then extract
+                request.addOption("-f", "bestaudio/ba/b/best")
                 request.addOption("-x")
                 request.addOption("--audio-format", audioExtension)
                 request.addOption("--audio-quality", "0")
                 request.addOption("--add-metadata")
-                if (embedThumbnail) request.addOption("--embed-thumbnail")
+                if (embedThumbnail && !isInstagram) request.addOption("--embed-thumbnail")
             } else {
-                // Smart merged selector with resilience for Instagram, FB, Threads reels/photos and YouTube
+                // ── Format selector: platform-specific ─────────────────────────
                 val selected = when {
-                    formatId.isBlank() || formatId == "best" ->
-                        if (isMeta) "b/best" else "bv*[height<=1080]+ba/b[height<=1080]/best"
-                    formatId == "bestvideo+bestaudio/best" ->
-                        if (isMeta) "b/best" else "bv*[height<=1080][ext=mp4]+ba[ext=m4a]/bv*[height<=1080]+ba/b[height<=1080]/best"
+                    // Already a complex format string — pass through
                     formatId.contains("+") || formatId.contains("/") || formatId.contains("[") -> formatId
-                    isMeta -> "$formatId/best"
-                    else -> "$formatId+ba/b/$formatId/best"
+
+                    // Meta platforms: single-stream only, no DASH mux needed
+                    isMeta ->
+                        if (formatId.isBlank() || formatId == "best") "b/best"
+                        else "$formatId/b/best"
+
+                    // TikTok: combined mp4 streams, no DASH
+                    isTikTok ->
+                        if (formatId.isBlank() || formatId == "best") "b[ext=mp4]/b/best"
+                        else "$formatId/b[ext=mp4]/b/best"
+
+                    // Twitter/X: combined streams, avoid DASH
+                    normalized.contains("twitter.com") || normalized.contains("x.com") ->
+                        if (formatId.isBlank() || formatId == "best") "b/best"
+                        else "$formatId/b/best"
+
+                    // Reddit: combined mp4, DASH can fail
+                    normalized.contains("reddit.com") || normalized.contains("redd.it") ->
+                        if (formatId.isBlank() || formatId == "best")
+                            "bv*+ba/bv*[height<=1080]+ba/b[height<=1080]/best"
+                        else "$formatId+ba/b/best"
+
+                    // YouTube: full DASH merge capability
+                    isYouTube ->
+                        if (formatId.isBlank() || formatId == "best")
+                            "bv*[height<=2160][ext=mp4]+ba[ext=m4a]/bv*[height<=1080][ext=mp4]+ba[ext=m4a]/bv*[height<=1080]+ba/b[height<=1080]/best"
+                        else if (formatId == "bestvideo+bestaudio/best")
+                            "bv*[height<=2160][ext=mp4]+ba[ext=m4a]/bv*[height<=1080][ext=mp4]+ba[ext=m4a]/bv*+ba/b/best"
+                        else "$formatId+ba[ext=m4a]/$formatId+ba/$formatId/best"
+
+                    // Bilibili: needs different codec
+                    normalized.contains("bilibili.com") ->
+                        if (formatId.isBlank() || formatId == "best") "bv*+ba/b/best"
+                        else "$formatId+ba/b/best"
+
+                    // Twitch: uses chunked HLS — best combined
+                    isTwitch ->
+                        if (formatId.isBlank() || formatId == "best") "b/best/1080p60/720p60"
+                        else "$formatId/b/best"
+
+                    // Generic/other: combined with DASH fallback
+                    else ->
+                        if (formatId.isBlank() || formatId == "best")
+                            "bv*+ba/b[height<=1080]/best"
+                        else "$formatId+ba/$formatId/best"
                 }
                 request.addOption("-f", selected)
 
@@ -369,12 +409,25 @@ object YtDlpEngine {
                     request.addOption("--merge-output-format", "mp4")
                 }
 
-                if (ytAndroidClient) {
-                    request.addOption("--extractor-args", "youtube:player_client=android")
+                // YouTube: enable Android client for age-gated or throttled content
+                if (ytAndroidClient && isYouTube) {
+                    request.addOption("--extractor-args", "youtube:player_client=android,web")
                 }
-                if (embedThumbnail && !isInstagram && !normalized.contains("instagr.am")) request.addOption("--embed-thumbnail")
-                if (embedSubtitles) request.addOption("--embed-subs")
+                // TikTok: no watermark extractor
+                if (isTikTok) {
+                    request.addOption("--extractor-args", "tiktok:app_name=trill")
+                }
+                // Bilibili: Chinese CDN workaround
+                if (normalized.contains("bilibili.com")) {
+                    request.addOption("--extractor-args", "bilibili:prefer_multi_flv=false")
+                }
+
+                if (embedThumbnail && !isInstagram && !normalized.contains("instagr.am")) {
+                    request.addOption("--embed-thumbnail")
+                }
+                if (embedSubtitles && !isCombinedOnly) request.addOption("--embed-subs")
             }
+
 
             if (cookiesFile?.exists() == true) {
                 request.addOption("--cookies", cookiesFile.absolutePath)

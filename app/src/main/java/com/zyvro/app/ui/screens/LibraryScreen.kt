@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -22,6 +23,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -34,22 +37,21 @@ import com.zyvro.app.data.local.MediaType
 import com.zyvro.app.data.local.fileSize
 import com.zyvro.app.data.scanner.LocalMediaScanner
 import com.zyvro.app.player.MediaPlayerManager
-import com.zyvro.app.ui.components.AppleSpringSpec
 import com.zyvro.app.ui.components.AudioTrimmerDialog
 import com.zyvro.app.ui.components.DownloadItemCard
 import com.zyvro.app.ui.components.LiquidGlassCard
 import com.zyvro.app.ui.components.LiquidGlassPill
+import com.zyvro.app.ui.components.ambientLiquidBackground
 import com.zyvro.app.ui.components.liquidGlass
+import com.zyvro.app.ui.theme.*
 import com.zyvro.app.viewmodel.LibraryFilter
 import com.zyvro.app.viewmodel.LibraryViewModel
 import kotlinx.coroutines.launch
-import com.zyvro.app.ui.theme.LocalAppDark
-import androidx.compose.ui.graphics.Brush
-import com.zyvro.app.ui.components.ambientLiquidBackground
-import com.zyvro.app.ui.theme.NovaCyan
-import com.zyvro.app.ui.theme.NovaCyanDeep
-import com.zyvro.app.ui.theme.NovaAzure
 import java.io.File
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ZYVRO LIBRARY SCREEN v4.0 — Deep Space Aura · Media Hub
+// ═══════════════════════════════════════════════════════════════════════════
 
 @Composable
 fun LibraryScreen(
@@ -90,7 +92,6 @@ fun LibraryScreen(
             LibraryFilter.ALL -> true
             LibraryFilter.VIDEOS -> item.mediaType == MediaType.VIDEO
             LibraryFilter.AUDIO -> item.mediaType == MediaType.AUDIO
-            // Device scans carry no play stats: show everything under smart filters.
             LibraryFilter.FAVORITES, LibraryFilter.TOP -> true
         }
         val matchesQuery = searchQuery.isBlank() ||
@@ -100,40 +101,24 @@ fun LibraryScreen(
     }
 
     val isDark = LocalAppDark.current
-    val activePillBrush = if (isDark) {
-        Brush.horizontalGradient(
-            listOf(
-                Color(0xFF00E5FF).copy(alpha = 0.35f),
-                Color(0xFF0077B6).copy(alpha = 0.50f)
-            )
-        )
-    } else {
-        Brush.horizontalGradient(
-            listOf(
-                NovaCyan,
-                NovaCyanDeep
-            )
-        )
-    }
+    val activePillBrush = Brush.horizontalGradient(listOf(NovaPrimary, NovaViolet))
     val activeBorderBrush = Brush.linearGradient(
         listOf(
-            if (isDark) Color(0xFF00E5FF).copy(alpha = 0.6f) else Color.White,
-            if (isDark) Color.White.copy(alpha = 0.2f) else Color(0xFF00B4D8).copy(alpha = 0.5f)
+            NovaPrimary.copy(alpha = 0.8f),
+            NovaViolet.copy(alpha = 0.6f)
         )
     )
-    val activeTextColor = if (isDark) Color(0xFF00E5FF) else Color(0xFF0A1E2C)
-    val inactiveTextColor = if (isDark) Color(0xFF90A8BD) else Color(0xFF4A687D)
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .ambientLiquidBackground()
+            .ambientLiquidBackground(isDark)
             .statusBarsPadding()
             .padding(horizontal = 16.dp)
     ) {
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Header
+        // ── Header ─────────────────────────────────────────────────────────
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -142,29 +127,31 @@ fun LibraryScreen(
             Column {
                 Text(
                     text = "Media Library",
-                    style = MaterialTheme.typography.headlineLarge.copy(fontSize = 32.sp),
-                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Black,
                     color = MaterialTheme.colorScheme.onBackground
                 )
                 Text(
                     text = "${displayList.size} files available",
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (activeTab == 1) {
                     IconButton(
                         onClick = { refreshLocalMedia() },
                         modifier = Modifier
                             .size(38.dp)
-                            .liquidGlass(shape = CircleShape, elevation = 2.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(NovaPrimary.copy(alpha = 0.12f))
+                            .border(0.5.dp, NovaPrimary.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
                     ) {
                         Icon(
                             Icons.Rounded.Refresh,
                             contentDescription = "Scan Device Media",
-                            tint = if (isDark) NovaCyan else NovaCyanDeep,
+                            tint = NovaPrimary,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -173,12 +160,14 @@ fun LibraryScreen(
                         onClick = { viewModel.clearAllCompleted() },
                         modifier = Modifier
                             .size(38.dp)
-                            .liquidGlass(shape = CircleShape, elevation = 2.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(AccentRed.copy(alpha = 0.12f))
+                            .border(0.5.dp, AccentRed.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
                     ) {
                         Icon(
                             Icons.Rounded.DeleteSweep,
                             contentDescription = "Clear Completed",
-                            tint = MaterialTheme.colorScheme.error,
+                            tint = AccentRed,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -186,9 +175,9 @@ fun LibraryScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
-        // Penpot Device Storage Breakdown Glass Card
+        // ── Device Storage Glass Card ──────────────────────────────────────
         val freeBytes = remember {
             runCatching { android.os.Environment.getDataDirectory().freeSpace }.getOrDefault(50L * 1024L * 1024L * 1024L)
         }
@@ -200,9 +189,9 @@ fun LibraryScreen(
         LiquidGlassCard(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(20.dp),
-            elevation = 3.dp
+            elevation = 4.dp
         ) {
-            Column(modifier = Modifier.padding(12.dp)) {
+            Column(modifier = Modifier.padding(14.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -212,45 +201,46 @@ fun LibraryScreen(
                         Icon(
                             Icons.Rounded.Storage,
                             contentDescription = null,
-                            tint = if (isDark) NovaCyan else NovaCyanDeep,
+                            tint = NovaPrimary,
                             modifier = Modifier.size(16.dp)
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = "Device Storage",
-                            style = MaterialTheme.typography.titleSmall.copy(fontSize = 12.5.sp),
-                            fontWeight = FontWeight.Bold
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     }
                     Text(
                         text = "$freeGb GB Free",
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                        color = if (isDark) NovaCyan else NovaCyanDeep,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = NovaPrimary,
                         fontWeight = FontWeight.Bold
                     )
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
                 // Multi-Segment Storage Bar
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(5.dp)
+                        .height(6.dp)
                         .clip(CircleShape)
-                        .background(if (isDark) Color(0xFF162B3D) else Color(0xFFCCE7E8))
+                        .background(if (isDark) SpaceBorder else Color(0xFFE2E9F8))
                 ) {
                     Box(
                         modifier = Modifier
                             .fillMaxHeight()
-                            .weight(0.18f)
-                            .background(if (isDark) NovaCyan else NovaCyanDeep)
+                            .weight(0.20f)
+                            .background(Brush.horizontalGradient(GradientCyan))
                     )
                     Box(
                         modifier = Modifier
                             .fillMaxHeight()
-                            .weight(0.32f)
-                            .background(if (isDark) Color(0xFF33556E) else Color(0xFF506F72))
+                            .weight(0.30f)
+                            .background(Brush.horizontalGradient(GradientViolet))
                     )
                     Box(
                         modifier = Modifier
@@ -260,37 +250,37 @@ fun LibraryScreen(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(modifier = Modifier.size(5.dp).clip(CircleShape).background(if (isDark) NovaCyan else NovaCyanDeep))
+                        Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(NovaPrimary))
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = "Zyvro ($formattedSaved)",
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.5.sp),
-                            color = inactiveTextColor
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(modifier = Modifier.size(5.dp).clip(CircleShape).background(if (isDark) Color(0xFF33556E) else Color(0xFF506F72)))
+                        Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(NovaViolet))
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = "Used Apps",
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.5.sp),
-                            color = inactiveTextColor
+                            text = "Other Apps",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(modifier = Modifier.size(5.dp).clip(CircleShape).background(if (isDark) Color(0xFF162B3D) else Color(0xFFCCE7E8)))
+                        Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(if (isDark) SpaceBorder else Color(0xFFC0D0E8)))
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = "Free ($freeGb GB)",
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.5.sp),
-                            color = inactiveTextColor
+                            text = "Free Space",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -299,7 +289,7 @@ fun LibraryScreen(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // iOS Liquid Glass Segmented Control
+        // ── Segmented Control (Downloads vs Device Storage) ─────────────────
         LiquidGlassCard(
             modifier = Modifier
                 .fillMaxWidth()
@@ -323,7 +313,7 @@ fun LibraryScreen(
                             if (activeTab == 0) {
                                 Modifier
                                     .background(activePillBrush, RoundedCornerShape(20.dp))
-                                    .border(1.2.dp, activeBorderBrush, RoundedCornerShape(20.dp))
+                                    .border(1.dp, activeBorderBrush, RoundedCornerShape(20.dp))
                             } else Modifier
                         )
                         .clickable { activeTab = 0 },
@@ -331,9 +321,9 @@ fun LibraryScreen(
                 ) {
                     Text(
                         text = "Downloads (${completedList.size})",
-                        style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.5.sp),
+                        style = MaterialTheme.typography.labelMedium,
                         fontWeight = if (activeTab == 0) FontWeight.ExtraBold else FontWeight.SemiBold,
-                        color = if (activeTab == 0) activeTextColor else inactiveTextColor
+                        color = if (activeTab == 0) Color(0xFF001824) else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
 
@@ -347,17 +337,17 @@ fun LibraryScreen(
                             if (activeTab == 1) {
                                 Modifier
                                     .background(activePillBrush, RoundedCornerShape(20.dp))
-                                    .border(1.2.dp, activeBorderBrush, RoundedCornerShape(20.dp))
+                                    .border(1.dp, activeBorderBrush, RoundedCornerShape(20.dp))
                             } else Modifier
                         )
                         .clickable { activeTab = 1 },
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "Device Storage",
-                        style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.5.sp),
+                        text = "Device Media",
+                        style = MaterialTheme.typography.labelMedium,
                         fontWeight = if (activeTab == 1) FontWeight.ExtraBold else FontWeight.SemiBold,
-                        color = if (activeTab == 1) activeTextColor else inactiveTextColor
+                        color = if (activeTab == 1) Color(0xFF001824) else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -365,131 +355,113 @@ fun LibraryScreen(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Search Bar with Liquid Glass
-        OutlinedTextField(
-            value = searchQuery,
-            onValueChange = { viewModel.setSearchQuery(it) },
+        // ── Search Bar with Deep Space Glow ────────────────────────────────
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .liquidGlass(shape = RoundedCornerShape(18.dp), elevation = 3.dp),
-            shape = RoundedCornerShape(18.dp),
-            placeholder = { Text("Search songs, videos or creators...", color = inactiveTextColor) },
-            leadingIcon = {
-                Icon(
-                    Icons.Rounded.Search,
-                    contentDescription = null,
-                    tint = if (isDark) NovaCyan else NovaCyanDeep
+                .shadow(4.dp, RoundedCornerShape(18.dp), spotColor = NovaPrimary.copy(alpha = 0.2f))
+                .clip(RoundedCornerShape(18.dp))
+                .background(if (isDark) SpaceCard else Color.White)
+                .border(
+                    0.8.dp,
+                    if (searchQuery.isNotBlank()) NovaPrimary.copy(alpha = 0.6f)
+                    else (if (isDark) SpaceBorder else Color(0xFFD4E0F0)),
+                    RoundedCornerShape(18.dp)
                 )
-            },
-            singleLine = true,
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = if (isDark) NovaCyan else NovaCyanDeep,
-                unfocusedBorderColor = Color.Transparent,
-                focusedContainerColor = Color.Transparent,
-                unfocusedContainerColor = Color.Transparent
+        ) {
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { viewModel.setSearchQuery(it) },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp),
+                placeholder = {
+                    Text(
+                        "Search titles, artists or formats…",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                },
+                leadingIcon = {
+                    Icon(
+                        Icons.Rounded.Search,
+                        contentDescription = null,
+                        tint = NovaPrimary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                },
+                trailingIcon = {
+                    if (searchQuery.isNotBlank()) {
+                        IconButton(onClick = { viewModel.setSearchQuery("") }) {
+                            Icon(Icons.Rounded.Close, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+                        }
+                    }
+                },
+                singleLine = true,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Color.Transparent,
+                    unfocusedBorderColor = Color.Transparent,
+                    focusedContainerColor = Color.Transparent,
+                    unfocusedContainerColor = Color.Transparent
+                )
             )
-        )
+        }
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        // Category Filter Pills (Retro-style: All / Videos / Audio / Favorites / Top)
+        // ── Category Filter Pills ──────────────────────────────────────────
         Row(
             modifier = Modifier.horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            LiquidGlassPill(
-                isSelected = currentFilter == LibraryFilter.ALL,
-                onClick = { viewModel.setFilter(LibraryFilter.ALL) }
-            ) {
-                Text(
-                    text = "All",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold
-                )
-            }
+            val filters = listOf(
+                Pair(LibraryFilter.ALL, "All"),
+                Pair(LibraryFilter.VIDEOS, "Videos"),
+                Pair(LibraryFilter.AUDIO, "Audio"),
+                Pair(LibraryFilter.FAVORITES, "Favorites"),
+                Pair(LibraryFilter.TOP, "Top Played")
+            )
 
-            LiquidGlassPill(
-                isSelected = currentFilter == LibraryFilter.VIDEOS,
-                onClick = { viewModel.setFilter(LibraryFilter.VIDEOS) }
-            ) {
-                Icon(
-                    Icons.Rounded.Videocam,
-                    contentDescription = null,
-                    modifier = Modifier.size(12.dp)
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = "Videos",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            LiquidGlassPill(
-                isSelected = currentFilter == LibraryFilter.AUDIO,
-                onClick = { viewModel.setFilter(LibraryFilter.AUDIO) }
-            ) {
-                Icon(
-                    Icons.Rounded.Audiotrack,
-                    contentDescription = null,
-                    modifier = Modifier.size(12.dp)
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = "Audio",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            LiquidGlassPill(
-                isSelected = currentFilter == LibraryFilter.FAVORITES,
-                onClick = { viewModel.setFilter(LibraryFilter.FAVORITES) }
-            ) {
-                Icon(
-                    Icons.Rounded.Favorite,
-                    contentDescription = null,
-                    modifier = Modifier.size(12.dp)
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = "Favorites",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            LiquidGlassPill(
-                isSelected = currentFilter == LibraryFilter.TOP,
-                onClick = { viewModel.setFilter(LibraryFilter.TOP) }
-            ) {
-                Icon(
-                    Icons.Rounded.TrendingUp,
-                    contentDescription = null,
-                    modifier = Modifier.size(12.dp)
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = "Top Played",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold
-                )
+            filters.forEach { (filterType, label) ->
+                val isSelected = currentFilter == filterType
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(
+                            if (isSelected) NovaPrimary.copy(alpha = 0.16f)
+                            else if (isDark) SpaceCardHigh else Color(0xFFF0F4FF)
+                        )
+                        .border(
+                            0.7.dp,
+                            if (isSelected) NovaPrimary else (if (isDark) SpaceBorder else Color(0xFFD4E0F0)),
+                            RoundedCornerShape(12.dp)
+                        )
+                        .clickable { viewModel.setFilter(filterType) }
+                        .padding(horizontal = 14.dp, vertical = 7.dp)
+                ) {
+                    Text(
+                        text = label,
+                        fontSize = 12.sp,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                        color = if (isSelected) NovaPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
 
         Spacer(modifier = Modifier.height(12.dp))
 
+        // ── Media List / Empty State ───────────────────────────────────────
         if (isScanning) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(32.dp),
+                    .padding(40.dp),
                 contentAlignment = Alignment.Center
             ) {
                 CircularProgressIndicator(
                     modifier = Modifier.size(32.dp),
-                    strokeWidth = 3.dp,
-                    color = MaterialTheme.colorScheme.primary
+                    strokeWidth = 2.5.dp,
+                    color = NovaPrimary
                 )
             }
         } else if (displayList.isEmpty()) {
@@ -500,46 +472,53 @@ fun LibraryScreen(
                 contentAlignment = Alignment.Center
             ) {
                 LiquidGlassCard(
-                    modifier = Modifier.fillMaxWidth(0.9f),
+                    modifier = Modifier.fillMaxWidth(0.92f),
                     shape = RoundedCornerShape(26.dp),
                     elevation = 6.dp
                 ) {
                     Column(
-                        modifier = Modifier.padding(28.dp),
+                        modifier = Modifier.padding(32.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(64.dp)
-                                .liquidGlass(shape = CircleShape, elevation = 4.dp),
+                                .size(72.dp)
+                                .shadow(12.dp, CircleShape, spotColor = NovaPrimary.copy(alpha = 0.3f))
+                                .clip(CircleShape)
+                                .background(Brush.linearGradient(listOf(SpaceCardHigh, SpaceGlass)))
+                                .border(1.dp, NovaPrimary.copy(alpha = 0.35f), CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = if (activeTab == 0) Icons.Rounded.FolderOpen else Icons.Rounded.PhoneAndroid,
                                 contentDescription = null,
-                                modifier = Modifier.size(32.dp),
-                                tint = MaterialTheme.colorScheme.primary
+                                modifier = Modifier.size(36.dp),
+                                tint = NovaPrimary
                             )
                         }
-                        Spacer(modifier = Modifier.height(14.dp))
+                        Spacer(modifier = Modifier.height(16.dp))
                         Text(
-                            text = if (activeTab == 0) "No Downloads Yet" else "No Device Media Found",
+                            text = if (activeTab == 0) "No Media Downloaded" else "No Device Files Found",
                             style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = if (activeTab == 0) "Downloaded videos and audio will appear here." else "Ensure storage permission is granted to scan local files.",
+                            text = if (activeTab == 0) "Downloaded files will be organized here with audio trimming and playlist support."
+                            else "Ensure storage permission is granted to scan device audio and video files.",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                            lineHeight = 18.sp
                         )
                     }
                 }
             }
         } else {
             LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                contentPadding = PaddingValues(bottom = 110.dp)
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                contentPadding = PaddingValues(bottom = 120.dp)
             ) {
                 items(displayList, key = { it.id }) { item ->
                     val isDeviceTab = activeTab == 1

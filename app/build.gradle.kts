@@ -15,8 +15,8 @@ android {
         applicationId = "com.zyvro.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 27
-        versionName = "3.1.1"
+        versionCode = 28
+        versionName = "4.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }

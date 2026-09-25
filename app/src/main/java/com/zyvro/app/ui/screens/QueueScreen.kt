@@ -1,38 +1,44 @@
 package com.zyvro.app.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.*
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
-import com.zyvro.app.ui.theme.LocalAppDark
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Bolt
-import androidx.compose.material.icons.rounded.FileDownloadDone
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.material.icons.rounded.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.zyvro.app.data.local.DownloadStatus
 import com.zyvro.app.ui.components.DownloadItemCard
 import com.zyvro.app.ui.components.LiquidGlassCard
 import com.zyvro.app.ui.components.ambientLiquidBackground
 import com.zyvro.app.ui.components.liquidGlass
-import com.zyvro.app.ui.theme.NovaCyan
-import com.zyvro.app.ui.theme.NovaCyanDeep
-import com.zyvro.app.ui.theme.NovaPrimary
+import com.zyvro.app.ui.theme.*
 import com.zyvro.app.viewmodel.QueueViewModel
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ZYVRO QUEUE SCREEN v4.0 — Deep Space Aura · Live Download Center
+// ═══════════════════════════════════════════════════════════════════════════
 
 @Composable
 fun QueueScreen(
@@ -41,89 +47,120 @@ fun QueueScreen(
     val activeQueue by viewModel.activeQueue.collectAsState()
     val isDark = LocalAppDark.current
 
+    val downloadingCount = activeQueue.count { it.status == DownloadStatus.DOWNLOADING }
+    val queuedCount = activeQueue.count { it.status == DownloadStatus.QUEUED }
+
+    val infiniteTransition = rememberInfiniteTransition(label = "queue-pulse")
+    val pulseGlow by infiniteTransition.animateFloat(
+        initialValue = 0.3f,
+        targetValue = 0.8f,
+        animationSpec = infiniteRepeatable(tween(1400, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "pulseGlow"
+    )
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .ambientLiquidBackground()
+            .ambientLiquidBackground(isDark)
             .statusBarsPadding()
             .padding(horizontal = 16.dp)
     ) {
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Header with live task count
+        // ── Header ─────────────────────────────────────────────────────────
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "Download Queue",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Black,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    if (downloadingCount > 0) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(NovaPrimary.copy(alpha = pulseGlow))
+                        )
+                    }
+                }
                 Text(
-                    text = "Download Queue",
-                    style = MaterialTheme.typography.headlineLarge.copy(fontSize = 32.sp),
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-                Text(
-                    text = "${activeQueue.size} Active Tasks",
-                    style = MaterialTheme.typography.bodyMedium,
+                    text = when {
+                        activeQueue.isEmpty() -> "All tasks completed"
+                        downloadingCount > 0 -> "$downloadingCount active · $queuedCount queued"
+                        else -> "${activeQueue.size} tasks pending"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(14.dp))
 
-        // Aria2c acceleration status banner
+        // ── Turbo Engine Acceleration Status Card ───────────────────────────
         if (activeQueue.isNotEmpty()) {
             LiquidGlassCard(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(20.dp),
-                elevation = 4.dp
+                elevation = 6.dp
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(34.dp)
-                            .clip(CircleShape)
-                            .background(Brush.linearGradient(listOf(NovaCyan, NovaCyanDeep))),
+                            .size(38.dp)
+                            .shadow(8.dp, RoundedCornerShape(12.dp), spotColor = NovaPrimary.copy(alpha = 0.5f))
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Brush.linearGradient(GradientCyan)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             Icons.Rounded.Bolt,
                             contentDescription = null,
-                            tint = Color(0xFF041724),
-                            modifier = Modifier.size(20.dp)
+                            tint = Color(0xFF001824),
+                            modifier = Modifier.size(22.dp)
                         )
                     }
-                    Spacer(modifier = Modifier.width(10.dp))
+                    Spacer(modifier = Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "Turbo Engine Active",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(NovaPrimary.copy(alpha = 0.15f))
+                                    .padding(horizontal = 6.dp, vertical = 1.dp)
+                            ) {
+                                Text(
+                                    "MULTI-THREAD",
+                                    fontSize = 8.5.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = NovaPrimary
+                                )
+                            }
+                        }
                         Text(
-                            text = "Turbo Engine Active",
-                            style = MaterialTheme.typography.titleSmall.copy(fontSize = 12.5.sp),
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "Multi-connection accelerated",
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                            text = "Accelerated multi-fragment downloader running",
+                            style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (isDark) Color(0xFF142B3D) else Color(0xFFE0F5F6))
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        Text(
-                            text = "TURBO",
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.5.sp),
-                            fontWeight = FontWeight.Black,
-                            color = if (isDark) NovaCyan else NovaPrimary
                         )
                     }
                 }
@@ -132,6 +169,7 @@ fun QueueScreen(
             Spacer(modifier = Modifier.height(14.dp))
         }
 
+        // ── Queue List or Empty State ───────────────────────────────────────
         if (activeQueue.isEmpty()) {
             Box(
                 modifier = Modifier
@@ -140,7 +178,7 @@ fun QueueScreen(
                 contentAlignment = Alignment.Center
             ) {
                 LiquidGlassCard(
-                    modifier = Modifier.fillMaxWidth(0.9f),
+                    modifier = Modifier.fillMaxWidth(0.92f),
                     shape = RoundedCornerShape(28.dp),
                     elevation = 8.dp
                 ) {
@@ -150,36 +188,42 @@ fun QueueScreen(
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(72.dp)
-                                .liquidGlass(shape = CircleShape, elevation = 4.dp),
+                                .size(80.dp)
+                                .shadow(16.dp, CircleShape, spotColor = NovaPrimary.copy(alpha = 0.3f))
+                                .clip(CircleShape)
+                                .background(Brush.linearGradient(listOf(SpaceCardHigh, SpaceGlass)))
+                                .border(1.dp, NovaPrimary.copy(alpha = 0.35f), CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = Icons.Rounded.FileDownloadDone,
+                                imageVector = Icons.Rounded.CloudDone,
                                 contentDescription = null,
-                                modifier = Modifier.size(36.dp),
-                                tint = MaterialTheme.colorScheme.primary
+                                modifier = Modifier.size(40.dp),
+                                tint = NovaPrimary
                             )
                         }
-                        Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(18.dp))
                         Text(
-                            text = "Queue is Empty",
+                            text = "Queue is Idle",
                             style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
-                        Spacer(modifier = Modifier.height(6.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "New downloads will appear here with live speed, ETA, and progress.",
+                            text = "Paste any link on the Home screen to queue high-speed downloads with live ETA.",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                            lineHeight = 18.sp
                         )
                     }
                 }
             }
         } else {
             LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(14.dp),
-                contentPadding = PaddingValues(bottom = 110.dp)
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(bottom = 120.dp)
             ) {
                 items(activeQueue, key = { it.id }) { item ->
                     DownloadItemCard(

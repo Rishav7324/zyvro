@@ -155,11 +155,23 @@ class DownloadService : Service() {
                             publicFile.absolutePath
                         )
                     }.onFailure { error ->
-                        repository.markFailed(download.id, error.message ?: "Could not save downloaded file")
+                        repository.markFailed(
+                            download.id,
+                            com.zyvro.app.engine.DownloadErrors.friendlyMessage(
+                                error.message ?: "Could not save downloaded file",
+                                hasCookies = false
+                            )
+                        )
                     }
                 },
                 onFailure = { error ->
-                    repository.markFailed(download.id, error.message ?: "Unknown download error")
+                    repository.markFailed(
+                        download.id,
+                        com.zyvro.app.engine.DownloadErrors.friendlyMessage(
+                            error.message ?: "Unknown download error",
+                            hasCookies = cookiesFile != null
+                        )
+                    )
                 }
             )
         } finally {
