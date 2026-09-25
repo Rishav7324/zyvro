@@ -32,6 +32,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import coil.request.videoFrameMillis
 import com.zyvro.app.data.local.MediaType
 import com.zyvro.app.player.MediaPlayerManager
 import com.zyvro.app.ui.components.liquidGlass

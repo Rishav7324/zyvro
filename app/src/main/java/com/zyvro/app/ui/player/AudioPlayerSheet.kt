@@ -283,10 +283,7 @@ fun AudioPlayerSheet(onDismiss: () -> Unit) {
                                     repository.toggleFavorite(item.id)
                                     isFavDb = !isFavDb
                                 } else {
-                                    if (deviceFavs.contains(item.targetPath))
-                                        repository.preferences.removeDeviceFavorite(item.targetPath)
-                                    else
-                                        repository.preferences.addDeviceFavorite(item.targetPath)
+                                    repository.preferences.toggleDeviceFavorite(item.targetPath)
                                 }
                             }
                         }
@@ -572,8 +569,8 @@ fun AudioPlayerSheet(onDismiss: () -> Unit) {
                 }
                 2 -> {
                     // Info
-                    val file = remember { File(item.targetPath) }
                     item {
+                        val file = File(item.targetPath)
                         Column(
                             modifier  = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
                             verticalArrangement = Arrangement.spacedBy(6.dp)

@@ -61,7 +61,7 @@ fun DownloadItemCard(
         elevation = 6.dp,
         tintColor = when (download.status) {
             DownloadStatus.COMPLETED -> null
-            DownloadStatus.ERROR     -> AccentRed.copy(alpha = 0.3f)
+            DownloadStatus.FAILED    -> AccentRed.copy(alpha = 0.3f)
             else                     -> NovaPrimary.copy(alpha = 0.2f)
         }
     ) {
@@ -101,7 +101,12 @@ fun DownloadItemCard(
                                 .crossfade(true)
                                 .build()
                         }
-                        AsyncImage(req, download.title, ContentScale.Crop, Modifier.fillMaxSize())
+                        AsyncImage(
+                            model = req,
+                            contentDescription = download.title,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
                     }
 
                     // Status badge overlay
@@ -118,7 +123,7 @@ fun DownloadItemCard(
                         ) {
                             Icon(Icons.Rounded.Check, null, tint = Color.White, modifier = Modifier.size(11.dp))
                         }
-                        DownloadStatus.ERROR -> Box(
+                        DownloadStatus.FAILED -> Box(
                             Modifier
                                 .size(18.dp)
                                 .align(Alignment.BottomEnd)
@@ -189,7 +194,7 @@ fun DownloadItemCard(
                                 verticalAlignment     = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    "${download.progress.coerceIn(0, 100)}%",
+                                    "${download.progress.coerceIn(0f, 100f).toInt()}%",
                                     style      = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.Bold,
                                     color      = NovaPrimary
@@ -242,7 +247,7 @@ fun DownloadItemCard(
                             }
                         }
 
-                        DownloadStatus.ERROR -> {
+                        DownloadStatus.FAILED -> {
                             Text(
                                 "Download failed",
                                 style  = MaterialTheme.typography.labelSmall,
@@ -283,7 +288,7 @@ fun DownloadItemCard(
                             }
                             SmallActionButton(Icons.Rounded.Delete, "Delete", AccentRed.copy(alpha = 0.7f)) { onDelete(download.id) }
                         }
-                        DownloadStatus.ERROR -> {
+                        DownloadStatus.FAILED -> {
                             SmallActionButton(Icons.Rounded.Delete, "Remove", AccentRed.copy(alpha = 0.7f)) { onDelete(download.id) }
                         }
                         else -> {}
